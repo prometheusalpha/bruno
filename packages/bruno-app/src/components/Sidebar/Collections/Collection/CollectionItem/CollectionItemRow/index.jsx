@@ -706,6 +706,13 @@ const CollectionItemRow = ({
     dispatch(setFocusedSidebarPath(null));
   };
 
+  const handleKeyDown = (event) => {
+    if (event.key !== 'Enter' || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.target !== event.currentTarget) return;
+    event.preventDefault();
+    setRenameItemModalOpen(true);
+  };
+
   return (
     <StyledWrapper className={className}>
       {renameItemModalOpen && (
@@ -751,6 +758,7 @@ const CollectionItemRow = ({
         tabIndex={0}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
         onMouseDown={isDragDisabled ? startBlockedDragTracking : undefined}
         onContextMenu={handleContextMenu}
         data-testid="sidebar-collection-item-row"

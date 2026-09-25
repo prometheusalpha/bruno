@@ -152,3 +152,28 @@ export const revealFolderRow = async (
     return targetRow;
   });
 };
+
+/**
+ * Focus a sidebar item row by clicking it, then press Enter to open the existing rename popup.
+ * @param page - The Playwright page object
+ * @param collectionName - The collection holding the item
+ * @param itemName - The request/folder name shown in the sidebar
+ * @returns The rename modal locator, already visible and focused on the name input
+ */
+export const openRenameModalWithEnter = async (
+  page: Page,
+  collectionName: string,
+  itemName: string
+): Promise<Locator> => {
+  return await test.step(`Open rename modal for "${itemName}" with Enter`, async () => {
+    const locators = buildSidebarLocators(page);
+    const row = locators.itemRowIn(collectionName, itemName);
+    await expect(row).toBeVisible();
+    await row.click();
+    await row.press('Enter');
+    const modal = page.locator('.bruno-modal').filter({ hasText: 'Rename' });
+    await expect(modal).toBeVisible();
+    await expect(locators.renameItemModal.nameInput()).toBeFocused();
+    return modal;
+  });
+};

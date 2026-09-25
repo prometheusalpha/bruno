@@ -1,5 +1,5 @@
 import { test, expect } from '../../playwright';
-import { buildCommonLocators, createCollection, createRequest, closeAllCollections } from '../utils/page';
+import { buildCommonLocators, createCollection, createFolder, createRequest, closeAllCollections, openRenameModalWithEnter } from '../utils/page';
 
 test.describe('Rename Collection Item - File Extension', () => {
   test.afterEach(async ({ page }) => {
@@ -40,6 +40,49 @@ test.describe('Rename Collection Item - File Extension', () => {
 
       // Close the rename modal
       await renameModal.getByRole('button', { name: 'Cancel' }).click();
+    });
+  });
+
+  test('should open the rename popup when Enter is pressed on a focused request row', async ({ page, createTmpDir }) => {
+    const locators = buildCommonLocators(page);
+    const testDir = await createTmpDir('enter-rename-request');
+
+    await test.step('Create collection with a request', async () => {
+      await createCollection(page, 'Enter Rename Request', testDir);
+      await createRequest(page, 'Enter Request', 'Enter Rename Request');
+    });
+
+    await test.step('Focus the request row and press Enter', async () => {
+      await openRenameModalWithEnter(page, 'Enter Rename Request', 'Enter Request');
+    });
+
+    await test.step('Rename and verify the sidebar name changes', async () => {
+      await locators.sidebar.renameItemModal.nameInput().fill('Enter Request Renamed');
+      await locators.sidebar.renameItemModal.submit().click();
+      await expect(locators.sidebar.itemByName('Enter Request Renamed')).toBeVisible();
+      await expect(locators.sidebar.itemByName('Enter Request')).toHaveCount(0);
+    });
+  });
+
+  test('should open the rename popup when Enter is pressed on a focused folder row', async ({ page, createTmpDir }) => {
+    const locators = buildCommonLocators(page);
+    const testDir = await createTmpDir('enter-rename-folder');
+
+    await test.step('Create collection with a folder', async () => {
+      await createCollection(page, 'Enter Rename Folder', testDir);
+      await createFolder(page, 'Enter Folder', 'Enter Rename Folder');
+    });
+
+    await test.step('Focus the folder row and press Enter', async () => {
+      const modal = await openRenameModalWithEnter(page, 'Enter Rename Folder', 'Enter Folder');
+      await expect(modal).toContainText('Rename Folder');
+    });
+
+    await test.step('Rename and verify the sidebar name changes', async () => {
+      await locators.sidebar.renameItemModal.nameInput().fill('Enter Folder Renamed');
+      await locators.sidebar.renameItemModal.submit().click();
+      await expect(locators.sidebar.itemByName('Enter Folder Renamed')).toBeVisible();
+      await expect(locators.sidebar.itemByName('Enter Folder')).toHaveCount(0);
     });
   });
 });
