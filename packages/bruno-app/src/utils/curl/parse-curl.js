@@ -216,7 +216,9 @@ const setAuth = (request, value) => {
     return;
   }
 
-  const [username, password] = value.split(':');
+  const separatorIndex = value.indexOf(':');
+  const username = separatorIndex === -1 ? value : value.slice(0, separatorIndex);
+  const password = separatorIndex === -1 ? '' : value.slice(separatorIndex + 1);
 
   // Store credentials temporarily for finalization in post-processing
   request.authCredentials = {
@@ -254,6 +256,44 @@ const normalizeAuthProperties = (request) => {
   delete request.authCredentials;
   delete request.isDigestAuth;
   delete request.isNtlmAuth;
+};
+
+/**
+ * Inspect the Authorization header and decode Basic credentials
+ * Returns null when there is no Authorization header, otherwise
+ * { headerName, credentials } where credentials is null for non Basic schemes
+ */
+const inspectAuthorizationHeader = (request) => {
+  const headerName = Object.keys(request.headers || {}).find((name) => name.toLowerCase() === 'authorization');
+  if (!headerName) {
+    return null;
+  }
+
+  const value = request.headers[headerName];
+  const match = typeof value === 'string' ? value.match(/^\s*basic\s+(\S+)\s*$/i) : null;
+  if (!match) {
+    return { headerName, credentials: null };
+  }
+
+  let decoded;
+  try {
+    decoded = Buffer.from(match[1], 'base64').toString('utf8');
+  } catch (e) {
+    return { headerName, credentials: null };
+  }
+
+  const separatorIndex = decoded.indexOf(':');
+  if (separatorIndex === -1) {
+    return { headerName, credentials: null };
+  }
+
+  return {
+    headerName,
+    credentials: {
+      username: decoded.slice(0, separatorIndex),
+      password: decoded.slice(separatorIndex + 1)
+    }
+  };
 };
 
 /**
@@ -489,6 +529,18 @@ const postBuildProcessRequest = (request) => {
     }
   }
 
+  const authorization = inspectAuthorizationHeader(request);
+  if (authorization) {
+    if (authorization.credentials) {
+      // basic credentials win over -u, drop the header so the Auth tab owns them
+      delete request.headers[authorization.headerName];
+      request.authCredentials = authorization.credentials;
+    } else {
+      // a non basic Authorization header wins over -u, keep the header and drop the credentials
+      delete request.authCredentials;
+    }
+  }
+
   normalizeAuthProperties(request);
 
   // if method is not set, set it to GET
@@ -528,6 +580,8 @@ const cleanCurlCommand = (curlCommand) => {
   curlCommand = curlCommand.replace(/\\'(?!')/g, '\'\\\'\'');
   // Fix concatenated HTTP methods
   curlCommand = fixConcatenatedMethods(curlCommand);
+  // Fix glued user flag
+  curlCommand = fixConcatenatedUserFlag(curlCommand);
 
   return curlCommand.trim();
 };
@@ -553,6 +607,14 @@ const fixConcatenatedMethods = (command) => {
   });
 
   return command;
+};
+
+/**
+ * Fix glued user flag
+ * Eg: converts -uuser:pass to -u user:pass for proper parsing
+ */
+const fixConcatenatedUserFlag = (command) => {
+  return command.replace(/(^|\s)-u(?=[^\s-])/g, '$1-u ');
 };
 
 /**

@@ -381,6 +381,92 @@ describe('parseCurlCommand', () => {
         urlWithoutQuery: 'https://api.example.com'
       });
     });
+
+    it('should parse password containing colons', () => {
+      const result = parseCurlCommand(`
+        curl -u "user:pa:ss" https://api.example.com
+      `);
+
+      expect(result).toEqual({
+        method: 'get',
+        auth: {
+          mode: 'basic',
+          basic: {
+            username: 'user',
+            password: 'pa:ss'
+          }
+        },
+        url: 'https://api.example.com',
+        urlWithoutQuery: 'https://api.example.com'
+      });
+    });
+
+    it('should parse glued -u flag', () => {
+      const result = parseCurlCommand(`
+        curl -uuser:pass https://api.example.com
+      `);
+
+      expect(result).toEqual({
+        method: 'get',
+        auth: {
+          mode: 'basic',
+          basic: {
+            username: 'user',
+            password: 'pass'
+          }
+        },
+        url: 'https://api.example.com',
+        urlWithoutQuery: 'https://api.example.com'
+      });
+    });
+
+    it('should move Authorization Basic header into auth and drop the header', () => {
+      const encoded = Buffer.from('user:pass').toString('base64');
+      const result = parseCurlCommand(`
+        curl -H "Authorization: Basic ${encoded}" https://api.example.com
+      `);
+
+      expect(result).toEqual({
+        method: 'get',
+        auth: {
+          mode: 'basic',
+          basic: {
+            username: 'user',
+            password: 'pass'
+          }
+        },
+        url: 'https://api.example.com',
+        urlWithoutQuery: 'https://api.example.com'
+      });
+      expect(result.headers).toBeUndefined();
+    });
+
+    it('should decode lowercase authorization header and scheme', () => {
+      const encoded = Buffer.from('user:pass').toString('base64');
+      const result = parseCurlCommand(`
+        curl -H "authorization: basic ${encoded}" https://api.example.com
+      `);
+
+      expect(result.auth).toEqual({
+        mode: 'basic',
+        basic: {
+          username: 'user',
+          password: 'pass'
+        }
+      });
+      expect(result.headers).toBeUndefined();
+    });
+
+    it('should let a non Basic Authorization header win over -u', () => {
+      const result = parseCurlCommand(`
+        curl -u "user:pass" -H "Authorization: Bearer token" https://api.example.com
+      `);
+
+      expect(result.auth).toBeUndefined();
+      expect(result.headers).toEqual({
+        Authorization: 'Bearer token'
+      });
+    });
   });
 
   describe('Form Data', () => {
@@ -612,13 +698,7 @@ describe('parseCurlCommand', () => {
           'Accept-Encoding': 'deflate, gzip'
         },
         data: '{"name": "John\'s data", "email": "john@example.com", "message": "Don\'t stop believing!", "path": "/home/user/file.txt", "json": {"nested": "value", "array": [1, 2, 3]}}',
-        auth: {
-          mode: 'basic',
-          basic: {
-            username: 'api_user',
-            password: 'api_pass'
-          }
-        },
+        // the Authorization header overrides -u, so no basic auth is imported
         queries: [
           { name: 'param1', value: 'value1' },
           { name: 'param2', value: 'custom+param' }
@@ -698,13 +778,7 @@ describe('parseCurlCommand', () => {
           'Accept-Encoding': 'deflate, gzip'
         },
         data: '{"name": "John\'s data", "email": "john@example.com", "message": "Don\'t stop believing!", "path": "/home/user/file.txt", "json": {"nested": "value", "array": [1, 2, 3]}}',
-        auth: {
-          mode: 'basic',
-          basic: {
-            username: 'api_user',
-            password: 'api_pass'
-          }
-        },
+        // the Authorization header overrides -u, so no basic auth is imported
         queries: [
           { name: 'param1', value: 'value1' },
           { name: 'param2', value: 'custom+param' }
@@ -735,13 +809,7 @@ describe('parseCurlCommand', () => {
           'Accept-Encoding': 'deflate, gzip'
         },
         data: '{"name": "John\'s data", "email": "john@example.com"}',
-        auth: {
-          mode: 'basic',
-          basic: {
-            username: 'api_user',
-            password: 'api_pass'
-          }
-        },
+        // the Authorization header overrides -u, so no basic auth is imported
         url: 'https://api.example.com/v1/users',
         urlWithoutQuery: 'https://api.example.com/v1/users'
       });

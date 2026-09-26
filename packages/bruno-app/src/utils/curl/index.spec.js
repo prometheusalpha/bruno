@@ -20,4 +20,16 @@ describe('getRequestFromCurlCommand', () => {
     expect(Array.isArray(request.body.file)).toBe(true);
     expect(request.body.file[0].filePath).toBe('/path/to/payload.json');
   });
+
+  it('should import Basic auth from an Authorization header', () => {
+    const encoded = Buffer.from('user:pass').toString('base64');
+    const curl = `curl -H "Authorization: Basic ${encoded}" https://api.example.com/secure`;
+
+    const request = getRequestFromCurlCommand(curl);
+
+    expect(request.auth.mode).toBe('basic');
+    expect(request.auth.basic).toEqual({ username: 'user', password: 'pass' });
+    const headerNames = (request.headers || []).map((header) => header.name.toLowerCase());
+    expect(headerNames).not.toContain('authorization');
+  });
 });
