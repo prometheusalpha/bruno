@@ -38,6 +38,7 @@ import IgnoreCollectionItem from '../IgnoreCollectionItem';
 import RunCollectionItem from '../RunCollectionItem';
 import GenerateCodeItem from '../GenerateCodeItem';
 import { isItemARequest, isItemAFolder, scrollToTheActiveTab } from 'utils/tabs';
+import useCopyAsCurl from 'hooks/useCopyAsCurl';
 import { doesRequestMatchSearchText, doesFolderHaveItemsMatchSearchText } from 'utils/collections/search';
 import { getDefaultRequestPaneTab, getItemTypeLabel } from 'utils/collections';
 import toast from 'react-hot-toast';
@@ -102,6 +103,7 @@ const CollectionItemRow = ({
 
   const isSidebarDragging = useSelector((state) => state.app.isDragging);
   const collection = useSelector((state) => state.collections.collections.find((c) => c.uid === collectionUid));
+  const copyAsCurl = useCopyAsCurl();
   const store = useStore();
   const { hasCopiedItems } = useSelector((state) => state.app.clipboard);
   const selectedSidebarUids = useSelector((state) => state.collections.selectedSidebarUids);
@@ -491,12 +493,20 @@ const CollectionItemRow = ({
     }
 
     if (!isFolder && (item.type === 'http-request' || item.type === 'graphql-request')) {
-      items.push({
-        id: 'generate-code',
-        leftSection: IconCode,
-        label: 'Generate Code',
-        onClick: handleGenerateCode
-      });
+      items.push(
+        {
+          id: 'copy-as-curl',
+          leftSection: IconTerminal2,
+          label: 'Copy as cURL',
+          onClick: () => copyAsCurl(item)
+        },
+        {
+          id: 'generate-code',
+          leftSection: IconCode,
+          label: 'Generate Code',
+          onClick: handleGenerateCode
+        }
+      );
     }
 
     if (!isFolder && isItemARequest(item) && item.type === 'http-request') {

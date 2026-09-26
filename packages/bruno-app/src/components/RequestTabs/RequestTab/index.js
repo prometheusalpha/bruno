@@ -8,6 +8,7 @@ import { clearGlobalEnvironmentDraft } from 'providers/ReduxStore/slices/global-
 import { saveGlobalEnvironment } from 'providers/ReduxStore/slices/global-environments';
 import { useTheme } from 'providers/Theme';
 import { useDispatch, useSelector } from 'react-redux';
+import useCopyAsCurl from 'hooks/useCopyAsCurl';
 import { findItemInCollection, findItemInCollectionByPathname, hasRequestChanges, areItemsLoading, isItemTransientRequest } from 'utils/collections';
 import { resolveNewRequestTarget } from './resolveNewRequestTarget';
 import ConfirmRequestClose from './ConfirmRequestClose';
@@ -17,7 +18,7 @@ import ConfirmCloseEnvironment from 'components/Environments/ConfirmCloseEnviron
 import RequestTabNotFound from './RequestTabNotFound';
 import RequestTabLoading from './RequestTabLoading';
 import SpecialTab from './SpecialTab';
-import { IconAppWindow } from '@tabler/icons';
+import { IconAppWindow, IconTerminal2 } from '@tabler/icons';
 import StyledWrapper from './StyledWrapper';
 import MenuDropdown from 'ui/MenuDropdown';
 import CloneCollectionItem from 'components/Sidebar/Collections/Collection/CollectionItem/CloneCollectionItem/index';
@@ -670,6 +671,7 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
 function RequestTabMenu({ menuDropdownRef, tabLabelRef, collectionRequestTabs, tabIndex, collection, dispatch, dropdownContainerRef }) {
   const [showCloneRequestModal, setShowCloneRequestModal] = useState(false);
   const [showAddNewRequestModal, setShowAddNewRequestModal] = useState(false);
+  const copyAsCurl = useCopyAsCurl();
 
   // Returns the tab-label's position for dropdown positioning.
   // Returns zero-sized rect if element isn't mounted yet (prevents Tippy errors).
@@ -684,6 +686,11 @@ function RequestTabMenu({ menuDropdownRef, tabLabelRef, collectionRequestTabs, t
   const currentTabUid = collectionRequestTabs[tabIndex]?.uid;
   const currentTabItem = findItemInCollection(collection, currentTabUid);
   const currentTabHasChanges = useMemo(() => hasRequestChanges(currentTabItem), [currentTabItem]);
+  // currentTabItem is undefined until the collection loads (and for transient
+  // tabs), so this must stay optional-chained — isItemARequest() dereferences
+  // its argument and throws on undefined.
+  const currentTabIsCurlable
+    = currentTabItem?.type === 'http-request' || currentTabItem?.type === 'graphql-request';
 
   const hasLeftTabs = tabIndex !== 0;
   const hasRightTabs = totalTabs > tabIndex + 1;
@@ -782,6 +789,13 @@ function RequestTabMenu({ menuDropdownRef, tabLabelRef, collectionRequestTabs, t
       onClick: () => setShowCloneRequestModal(true)
     },
     {
+      id: 'copy-as-curl',
+      leftSection: IconTerminal2,
+      label: 'Copy as cURL',
+      onClick: () => copyAsCurl(currentTabItem, collection),
+      disabled: !currentTabIsCurlable
+    },
+    {
       id: 'revert-changes',
       label: 'Revert Changes',
       onClick: handleRevertChanges,
@@ -820,7 +834,7 @@ function RequestTabMenu({ menuDropdownRef, tabLabelRef, collectionRequestTabs, t
       label: 'Close All',
       onClick: handleCloseAllTabs
     }
-  ], [currentTabUid, currentTabItem, hasOtherTabs, hasLeftTabs, hasRightTabs, collection, collectionRequestTabs, tabIndex, dispatch]);
+  ], [currentTabUid, currentTabItem, currentTabIsCurlable, hasOtherTabs, hasLeftTabs, hasRightTabs, collection, collectionRequestTabs, tabIndex, dispatch]);
 
   const menuDropdown = (
     <MenuDropdown

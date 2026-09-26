@@ -47,6 +47,7 @@ yarn-error.log*
 /test-results/
 /playwright-report/
 /playwright/.cache/
+/packages/bruno-electron/out-dev/
 
 #dev editor
 bruno.iml
