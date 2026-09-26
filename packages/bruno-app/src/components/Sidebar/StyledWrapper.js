@@ -47,6 +47,26 @@ const Wrapper = styled.div`
 
   }
 
+  /* "Focus active request" flash.
+     Animates an inset box-shadow rather than background-color: the focused row also carries
+     .item-focused-in-tab / .collection-focused-in-tab set background with !important,
+     and author !important declarations outrank CSS animations. */
+  @keyframes sidebar-focus-flash {
+    0% {
+      box-shadow: inset 3px 0 0 0 ${(props) => rgba(props.theme.primary.text, 0)};
+    }
+    30% {
+      box-shadow: inset 3px 0 0 0 ${(props) => rgba(props.theme.primary.text, 0.85)};
+    }
+    100% {
+      box-shadow: inset 3px 0 0 0 ${(props) => rgba(props.theme.primary.text, 0)};
+    }
+  }
+  .collection-item-name.item-focus-flash,
+  .collection-name.item-focus-flash {
+    animation: sidebar-focus-flash 1.2s ease-out;
+  }
+
   aside {
     background-color: ${(props) => props.theme.sidebar.bg};
     overflow: hidden;

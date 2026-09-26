@@ -28,6 +28,7 @@ const initialState = {
   leftSidebarWidth: null,
   sidebarCollapsed: null,
   showSidebarSearch: false,
+  focusSidebarRequestToken: 0,
   focusedSidebarPath: null,
   screenWidth: 500,
   showHomePage: false,
@@ -250,6 +251,11 @@ export const appSlice = createSlice({
     toggleSidebarSearch: (state) => {
       state.showSidebarSearch = !state.showSidebarSearch;
     },
+    // Bumped by the sidebar header "Focus active request" button. Incremented per click so
+    // the consuming effect re-runs even when the active tab did not change.
+    requestSidebarFocus: (state) => {
+      state.focusSidebarRequestToken += 1;
+    },
     setFocusedSidebarPath: (state, action) => {
       state.focusedSidebarPath = action.payload;
     },
@@ -328,6 +334,7 @@ export const {
   updateGenerateCode,
   toggleSidebarCollapse,
   toggleSidebarSearch,
+  requestSidebarFocus,
   setFocusedSidebarPath,
   updateGitOperationProgress,
   removeGitOperationProgress,

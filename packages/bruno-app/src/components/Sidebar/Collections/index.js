@@ -6,8 +6,8 @@ import CreateOrOpenCollection from './CreateOrOpenCollection';
 import CollectionSearch from './CollectionSearch/index';
 import InlineCollectionCreator from './InlineCollectionCreator';
 import SidebarRow from './SidebarRow';
-import { clearSidebarSelection } from 'providers/ReduxStore/slices/collections';
-import { buildSidebarEntries, getSelectionInfo } from 'utils/collections/index';
+import { clearSidebarSelection, expandCollection, expandItem } from 'providers/ReduxStore/slices/collections';
+import { buildSidebarEntries, getSelectionInfo, findCollectionByUid, findCollectionByItemUid, getTreePathFromCollectionToItem } from 'utils/collections/index';
 import { flattenSidebarTree, buildIndexes } from 'utils/collections/flattenSidebarTree';
 import { CollectionItemDragPreview } from './Collection/CollectionItem/CollectionItemDragPreview';
 import useBulkActionsMenu from 'hooks/useBulkActionsMenu';
@@ -26,6 +26,12 @@ const Collections = ({ showSearch, isCreatingCollection, onCreateClick, onDismis
   const dispatch = useDispatch();
   const virtuosoRef = useRef(null);
   const lastScrolledTabUidRef = useRef(null);
+  const focusRequestToken = useSelector((state) => state.app.focusSidebarRequestToken);
+  const [flashRowUid, setFlashRowUid] = useState(null);
+  // Separate refs: the expand effect and the scroll effect both watch the same token and
+  // must each run exactly once per click. A single shared ref would make one of them skip.
+  const expandTokenRef = useRef(0);
+  const scrollTokenRef = useRef(0);
 
   const { openBulkMenu, menuProps } = useBulkActionsMenu();
 
@@ -91,12 +97,60 @@ const Collections = ({ showSearch, isCreatingCollection, onCreateClick, onDismis
     ? (rowIndex ?? rowIndexByCollectionUid.get(activeTabUid) ?? null)
     : null;
 
+  // "Focus active request" click: make the target row exist by clearing the sidebar search
+  // filter and expanding every collapsed ancestor (collection + parent folders).
+  useEffect(() => {
+    if (focusRequestToken === expandTokenRef.current) return;
+    expandTokenRef.current = focusRequestToken;
+    if (!activeTabUid) return;
+
+    if (debouncedSearchText) setSearchText('');
+
+    // Active tab is a collection header (collection settings tab).
+    if (findCollectionByUid(collections, activeTabUid)) {
+      dispatch(expandCollection(activeTabUid));
+      return;
+    }
+
+    const collection = findCollectionByItemUid(collections, activeTabUid);
+    // Transient request / response example: no sidebar row exists, so nothing to focus.
+    if (!collection) return;
+
+    if (collection.collapsed) dispatch(expandCollection(collection.uid));
+
+    // Chain root -> item; expand the ancestors only, never the target request itself.
+    const treePath = getTreePathFromCollectionToItem(collection, { uid: activeTabUid });
+    treePath.forEach((node) => {
+      if (node.uid === activeTabUid) return;
+      if (node.collapsed) dispatch(expandItem({ collectionUid: collection.uid, itemUid: node.uid }));
+    });
+  }, [focusRequestToken]);
+
   useEffect(() => {
     if (activeRowIndex === null) return;
     if (lastScrolledTabUidRef.current === activeTabUid) return;
     virtuosoRef.current?.scrollIntoView({ index: activeRowIndex, behavior: 'smooth' });
     lastScrolledTabUidRef.current = activeTabUid;
   }, [activeTabUid, activeRowIndex]);
+
+  // Runs after the expand effect above: `rows` rebuild on the render that follows those
+  // dispatches, so `activeRowIndex` only becomes resolvable then.
+  useEffect(() => {
+    if (focusRequestToken === 0 || focusRequestToken === scrollTokenRef.current) return;
+    if (activeRowIndex === null) return;
+
+    virtuosoRef.current?.scrollIntoView({ index: activeRowIndex, behavior: 'smooth' });
+    // Claim the scroll so the auto-scroll effect above does not fight over the next render.
+    lastScrolledTabUidRef.current = activeTabUid;
+    scrollTokenRef.current = focusRequestToken;
+    setFlashRowUid(activeTabUid);
+  }, [focusRequestToken, activeRowIndex]);
+
+  useEffect(() => {
+    if (!flashRowUid) return;
+    const timer = setTimeout(() => setFlashRowUid(null), 1200);
+    return () => clearTimeout(timer);
+  }, [flashRowUid]);
 
   // Clear multi-selection only when clicking the bare scroller background.
   // The `contains` guard ignores events propagated from portaled menus/modals in <body>.
@@ -160,6 +214,7 @@ const Collections = ({ showSearch, isCreatingCollection, onCreateClick, onDismis
               isItemMultiDragDisabled={isItemMultiDragDisabled}
               multiDragCollections={multiDragCollections}
               multiDragItems={multiDragItems}
+              flashRowUid={flashRowUid}
             />
           )}
         />

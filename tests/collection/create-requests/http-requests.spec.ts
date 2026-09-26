@@ -66,5 +66,28 @@ test.describe('Create HTTP Requests', () => {
       await folderRequestItem.click();
       await expect(locators.tabs.activeRequestTab()).toContainText('Folder HTTP Request');
     });
+
+    await test.step('Create HTTP request without a name gets a generated Untitled name', async () => {
+      await locators.sidebar.collection('create-requests').hover();
+      await locators.actions.collectionActions('create-requests').click();
+      await locators.dropdown.item('New Request').click();
+
+      // Leave the name empty: the modal must not require it.
+      await expect(page.getByTestId('request-name')).toHaveValue('');
+      await locators.modal.button('Create').click();
+
+      // No validation error surfaced for the empty name.
+      await expect(locators.modal.any().getByTestId('form-error')).toHaveCount(0);
+      await locators.modal.any().waitFor({ state: 'hidden' });
+
+      // `.collection-item-name` also contains the HTTP method badge ("GETUntitled"), so match on
+      // `.item-name`, which holds the request name alone. The generator yields Untitled,
+      // Untitled1, ... depending on what already exists in the collection.
+      const untitled = page.locator('.item-name').filter({ hasText: /^Untitled\d*$/ });
+      await expect(untitled.first()).toBeVisible();
+
+      await untitled.first().click();
+      await expect(locators.tabs.activeRequestTab()).toContainText(/Untitled\d*$/);
+    });
   });
 });

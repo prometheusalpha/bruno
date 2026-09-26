@@ -13,12 +13,13 @@ import {
   IconSortDescendingLetters,
   IconSquareX,
   IconBox,
+  IconFocusCentered,
   IconTerminal2
 } from '@tabler/icons';
 
 import { importCollection, importCollectionFromZip, newHttpRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { sortCollections } from 'providers/ReduxStore/slices/collections/index';
-import { savePreferences, setIsCreatingCollection, setIsOpeningCollection, toggleSidebarSearch } from 'providers/ReduxStore/slices/app';
+import { savePreferences, setIsCreatingCollection, setIsOpeningCollection, toggleSidebarSearch, requestSidebarFocus } from 'providers/ReduxStore/slices/app';
 import { normalizePath } from 'utils/common/path';
 import { isScratchCollection, flattenItems, isItemTransientRequest } from 'utils/collections';
 import { sanitizeName } from 'utils/common/regex';
@@ -43,6 +44,7 @@ import useKeybinding from 'hooks/useKeybinding';
 const CollectionsSection = () => {
   const dispatch = useDispatch();
   const showSearch = useSelector((state) => state.app.showSidebarSearch);
+  const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
 
   const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
   const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
@@ -298,6 +300,15 @@ const CollectionsSection = () => {
         label="Search requests"
       >
         <IconSearch size={14} stroke={1.5} aria-hidden="true" />
+      </ActionIcon>
+
+      <ActionIcon
+        onClick={() => dispatch(requestSidebarFocus())}
+        label="Focus active request"
+        data-testid="collections-header-focus-active"
+        disabled={!activeTabUid}
+      >
+        <IconFocusCentered size={14} stroke={1.5} aria-hidden="true" />
       </ActionIcon>
 
       <MenuDropdown

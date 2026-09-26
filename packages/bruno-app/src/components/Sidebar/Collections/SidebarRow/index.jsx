@@ -25,7 +25,7 @@ const resolveRowObject = ({ row, itemsByUid, collectionsByUid, ghostsByPath }) =
 };
 
 const renderRow = (props) => {
-  const { row, searchText, openBulkMenu, collectionsByUid, isCollectionMultiDragDisabled, isItemMultiDragDisabled, multiDragCollections, multiDragItems } = props;
+  const { row, searchText, openBulkMenu, collectionsByUid, isCollectionMultiDragDisabled, isItemMultiDragDisabled, multiDragCollections, multiDragItems, flashRowUid } = props;
   const resolved = resolveRowObject(props);
 
   switch (row.kind) {
@@ -38,6 +38,7 @@ const renderRow = (props) => {
           openBulkMenu={openBulkMenu}
           isCollectionMultiDragDisabled={isCollectionMultiDragDisabled}
           multiDragCollections={multiDragCollections}
+          isFlashing={row.collectionUid === flashRowUid}
         />
       );
     }
@@ -56,6 +57,7 @@ const renderRow = (props) => {
           isItemMultiDragDisabled={isItemMultiDragDisabled}
           multiDragCollections={multiDragCollections}
           multiDragItems={multiDragItems}
+          isFlashing={row.itemUid === flashRowUid}
         />
       );
     }
@@ -128,6 +130,7 @@ const areEqual = (prev, next) => {
     && prev.multiDragCollections === next.multiDragCollections
     && prev.multiDragItems === next.multiDragItems
     && resolveRowObject(prev) === resolveRowObject(next)
+    && prev.flashRowUid === next.flashRowUid
   );
 };
 

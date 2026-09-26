@@ -27,6 +27,7 @@ export const buildSidebarLocators = (page: Page) => {
       return page.locator(`[data-parent-name="${folderName}"]`).locator('.collection-item-name').filter({ hasText: requestName });
     },
     closeAllCollectionsButton: () => page.getByTestId('collections-header-actions-menu-close-all'),
+    focusActiveRequestButton: () => page.getByTestId('collections-header-focus-active'),
     collectionRow,
     collectionRows: () => page.getByTestId('sidebar-collection-row'),
     itemRow,

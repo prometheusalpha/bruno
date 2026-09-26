@@ -59,7 +59,7 @@ import CreateMockServerModal from 'components/MockServer/CreateMockServerModal';
 import useSidebarSelectionClick from 'hooks/useSidebarSelectionClick';
 import { startBlockedDragTracking } from 'utils/dragBlockedCursor';
 
-const CollectionRow = ({ collection, searchText, openBulkMenu, children, isCollectionMultiDragDisabled, multiDragCollections }) => {
+const CollectionRow = ({ collection, searchText, openBulkMenu, children, isCollectionMultiDragDisabled, multiDragCollections, isFlashing = false }) => {
   const isMockServerEnabled = useBetaFeature(BETA_FEATURES.MOCK_SERVER);
   const { dropdownContainerRef } = useSidebarAccordion();
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
@@ -381,6 +381,7 @@ const CollectionRow = ({ collection, searchText, openBulkMenu, children, isColle
       'collection-focused-in-tab': isCollectionFocused && !isKeyboardFocused,
       'collection-keyboard-focused': isKeyboardFocused,
       'collection-selected': isSelected,
+      'item-focus-flash': isFlashing,
       'drag-disabled': isDragDisabled
     }
   );

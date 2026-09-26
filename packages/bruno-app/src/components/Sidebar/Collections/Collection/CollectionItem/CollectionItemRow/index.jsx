@@ -81,7 +81,8 @@ const CollectionItemRow = ({
   children,
   isItemMultiDragDisabled,
   multiDragCollections,
-  multiDragItems: multiDragItemsForSelection
+  multiDragItems: multiDragItemsForSelection,
+  isFlashing = false
 }) => {
   const { dropdownContainerRef } = useSidebarAccordion();
   const selectorInput = {
@@ -311,6 +312,7 @@ const CollectionItemRow = ({
     'drop-target-below': isOver && canDrop && dropType === 'below',
     'item-keyboard-focused': isKeyboardFocused,
     'collection-item-selected': isSelected,
+    'item-focus-flash': isFlashing,
     'drag-disabled': isDragDisabled
   });
 

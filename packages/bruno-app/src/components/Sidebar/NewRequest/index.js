@@ -11,7 +11,7 @@ import { newEphemeralHttpRequest } from 'providers/ReduxStore/slices/collections
 import { newHttpRequest, newGrpcRequest, newWsRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { addTab } from 'providers/ReduxStore/slices/tabs';
 import HttpMethodSelector from 'components/RequestPane/QueryUrl/HttpMethodSelector';
-import { getDefaultRequestPaneTab } from 'utils/collections';
+import { getDefaultRequestPaneTab, generateUniqueRequestName } from 'utils/collections';
 import { getRequestFromCurlCommand } from 'utils/curl';
 import { IconArrowBackUp, IconCaretDown, IconEdit } from '@tabler/icons';
 import { sanitizeName, validateName, validateNameError } from 'utils/common/regex';
@@ -117,22 +117,19 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
     validationSchema: Yup.object({
       requestName: Yup.string()
         .trim()
-        .min(1, 'must be at least 1 character')
-        .max(255, 'must be 255 characters or less')
-        .required('name is required'),
+        .max(255, 'must be 255 characters or less'),
       filename: Yup.string()
         .trim()
-        .min(1, 'must be at least 1 character')
         .max(255, 'must be 255 characters or less')
-        .required('filename is required')
         .test('is-valid-filename', function (value) {
+          if (!value) return true;
           const isValid = validateName(value);
           return isValid ? true : this.createError({ message: validateNameError(value) });
         })
         .test(
           'not-reserved',
           `The file names "collection" and "folder" are reserved in bruno`,
-          (value) => !['collection', 'folder'].includes(value)
+          (value) => !value || !['collection', 'folder'].includes(value)
         ),
       curlCommand: Yup.string().when('requestType', {
         is: (requestType) => requestType === 'from-curl',
@@ -146,15 +143,18 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
           })
       })
     }),
-    onSubmit: (values) => {
+    onSubmit: async (values) => {
       const isGrpcRequest = values.requestType === 'grpc-request';
       const isWsRequest = values.requestType === 'ws-request';
-      const filename = values.filename;
+      // Name is optional: fall back to a generated unique name (Untitled, Untitled1, ...).
+      const trimmedName = (values.requestName || '').trim();
+      const requestName = trimmedName || (await generateUniqueRequestName(collection, 'Untitled', item ? item.uid : null));
+      const filename = (values.filename || '').trim() || sanitizeName(requestName);
 
       if (isGrpcRequest) {
         dispatch(
           newGrpcRequest({
-            requestName: values.requestName,
+            requestName: requestName,
             filename: filename,
             requestType: values.requestType,
             requestUrl: values.requestUrl,
@@ -171,7 +171,7 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
         // will need to handle import from grpcurl command when we support it, now it is just for creating new requests
       } else if (isWsRequest) {
         dispatch(newWsRequest({
-          requestName: values.requestName,
+          requestName: requestName,
           requestMethod: values.requestMethod,
           filename: filename,
           requestType: values.requestType,
@@ -189,7 +189,7 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
         dispatch(
           newEphemeralHttpRequest({
             uid: uid,
-            requestName: values.requestName,
+            requestName: requestName,
             filename: filename,
             requestType: values.requestType,
             requestUrl: values.requestUrl,
@@ -214,7 +214,7 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
 
         dispatch(
           newHttpRequest({
-            requestName: values.requestName,
+            requestName: requestName,
             filename: filename,
             requestType: curlRequestTypeDetected,
             requestUrl: request.url,
@@ -235,7 +235,7 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
       } else {
         dispatch(
           newHttpRequest({
-            requestName: values.requestName,
+            requestName: requestName,
             filename: filename,
             requestType: values.requestType,
             requestUrl: values.requestUrl,
@@ -595,7 +595,7 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
                 <Button type="button" color="secondary" variant="ghost" onClick={onClose} className="mr-2">
                   Cancel
                 </Button>
-                <Button type="submit" data-testid="create-new-request-button">
+                <Button type="submit" data-testid="create-new-request-button" disabled={formik.isSubmitting}>
                   Create
                 </Button>
               </div>
