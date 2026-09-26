@@ -16,7 +16,7 @@ const QueryResponse = ({
   hideResultTypeSelector,
   docKey
 }) => {
-  const { initialFormat, initialTab } = useInitialResponseFormat(dataBuffer, headers);
+  const { initialFormat, initialTab } = useInitialResponseFormat(headers);
   const previewFormatOptions = useResponsePreviewFormatOptions(dataBuffer, headers);
   const [selectedFormat, setSelectedFormat] = useState('raw');
   const [selectedTab, setSelectedTab] = useState('editor');

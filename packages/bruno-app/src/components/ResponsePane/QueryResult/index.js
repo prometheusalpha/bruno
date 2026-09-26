@@ -41,20 +41,23 @@ const formatErrorMessage = (error) => {
   return error;
 };
 
-// Custom hook to determine the initial format and tab based on the data buffer and headers
-export const useInitialResponseFormat = (dataBuffer, headers) => {
+// Custom hook to determine the initial format and tab from the server-declared content type.
+// Binary sniffing (detectContentTypeFromBase64) is intentionally not used here: it returns null
+// for text bodies it cannot classify (e.g. non-ASCII text failing the isLikelyText ratio), and
+// gating on that would discard a perfectly valid Content-Type header. Sniffing stays authoritative
+// only for binary rendering decisions, which live in the hooks below.
+export const useInitialResponseFormat = (headers) => {
   return useMemo(() => {
-    const detectedContentType = detectContentTypeFromBase64(dataBuffer);
     const contentType = getContentType(headers);
 
-    // Wait until both content types are available
-    if (detectedContentType === null || contentType === undefined) {
-      return { initialFormat: null, initialTab: null, contentType: contentType };
+    // Wait until the response headers carry a usable content type
+    if (!contentType) {
+      return { initialFormat: null, initialTab: null, contentType };
     }
 
     const initial = getDefaultResponseFormat(contentType);
-    return { initialFormat: initial.format, initialTab: initial.tab, contentType: contentType };
-  }, [dataBuffer, headers]);
+    return { initialFormat: initial.format, initialTab: initial.tab, contentType };
+  }, [headers]);
 };
 
 // Custom hook to determine preview format options based on content type
