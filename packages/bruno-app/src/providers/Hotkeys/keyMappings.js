@@ -4,6 +4,7 @@ export const KEY_BINDING_SECTIONS = [
     bindings: {
       closeTab: { mac: 'command+bind+w', windows: 'ctrl+bind+w', name: 'Close Tab' }, // D
       closeAllTabs: { mac: 'command+bind+shift+bind+w', windows: 'ctrl+bind+shift+bind+w', name: 'Close All Tabs' }, // D
+      closeOtherTabs: { mac: 'command+bind+ctrl+bind+w', windows: 'ctrl+bind+alt+bind+w', name: 'Close Other Tabs' }, // D
       save: { mac: 'command+bind+s', windows: 'ctrl+bind+s', name: 'Save' }, // D
       saveAllTabs: { mac: 'command+bind+shift+bind+s', windows: 'ctrl+bind+shift+bind+s', name: 'Save All Tabs' }, // D
       reopenLastClosedTab: { mac: 'command+bind+shift+bind+t', windows: 'ctrl+bind+shift+bind+t', name: 'Reopen Last Closed Tab' }, // D

@@ -21,4 +21,17 @@ describe('keyMappings display helpers', () => {
     expect(getKeyBindingDisplayTextByOS('sendRequest', userKeyBindings, 'windows')).toBe('Ctrl + Shift + R');
     expect(getKeyBindingDisplayTextByOS('sendRequest', userKeyBindings, 'mac')).toBe('⌘ + ⇧ + R');
   });
+
+  it('resolves the Close Other Tabs default combo', () => {
+    expect(getKeyBindingForActionByOS('closeOtherTabs', undefined, 'mac')).toBe('command+bind+ctrl+bind+w');
+    expect(getKeyBindingForActionByOS('closeOtherTabs', undefined, 'windows')).toBe('ctrl+bind+alt+bind+w');
+  });
+
+  it('does not give Close Other Tabs the same default combo as Close All Tabs on either OS', () => {
+    for (const os of ['mac', 'windows']) {
+      expect(getKeyBindingForActionByOS('closeOtherTabs', undefined, os)).not.toBe(
+        getKeyBindingForActionByOS('closeAllTabs', undefined, os)
+      );
+    }
+  });
 });

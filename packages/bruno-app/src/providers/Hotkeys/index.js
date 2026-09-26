@@ -9,7 +9,7 @@ import filter from 'lodash/filter';
 import each from 'lodash/each';
 import { findCollectionByUid, findItemInCollection, flattenItems, isItemARequest, hasRequestChanges, findEnvironmentInCollection } from 'utils/collections';
 import { addTab, focusTab, reorderTabs } from 'providers/ReduxStore/slices/tabs';
-import { saveMultipleRequests, saveMultipleCollections, saveMultipleFolders, saveEnvironment, reopenClosedTab } from 'providers/ReduxStore/slices/collections/actions';
+import { saveMultipleRequests, saveMultipleCollections, saveMultipleFolders, saveEnvironment, reopenClosedTab, saveRequest, closeTabs } from 'providers/ReduxStore/slices/collections/actions';
 import { toggleSidebarCollapse, savePreferences } from 'providers/ReduxStore/slices/app';
 import { setLocalStorageValue, SIDEBAR_COLLAPSED_KEY } from 'utils/common/localStorage';
 import { openDevtoolsAndSwitchToTerminal } from 'utils/terminal';
@@ -188,6 +188,40 @@ export const HotkeysProvider = (props) => {
       unbindAction('closeAllTabs');
     };
   }, [activeTabUid, tabs, collections, userKeyBindings, keybindingsEnabled]);
+
+  // Close other tabs (all tabs in the active tab's collection except the active tab)
+  useEffect(() => {
+    bindAction('closeOtherTabs', async (e) => {
+      const otherTabs = getCollectionTabs().filter((tab) => tab.uid !== activeTabUid);
+      const uidsToClose = [];
+
+      for (const tab of otherTabs) {
+        try {
+          const collection = findCollectionByUid(collections, tab.collectionUid);
+          const item = collection ? findItemInCollection(collection, tab.uid) : null;
+          if (item && hasRequestChanges(item)) {
+            await dispatch(saveRequest(item.uid, collection.uid, true));
+          }
+        } catch (err) {
+          // a failed save must not block closing the tab — same policy as RequestTab.handleCloseMultipleTabs
+        }
+
+        if (tab?.uid) {
+          uidsToClose.push(tab.uid);
+        }
+      }
+
+      if (uidsToClose.length > 0) {
+        await dispatch(closeTabs({ tabUids: uidsToClose }));
+      }
+
+      return false; // this stops the event bubbling
+    });
+
+    return () => {
+      unbindAction('closeOtherTabs');
+    };
+  }, [activeTabUid, tabs, collections, dispatch, userKeyBindings, keybindingsEnabled]);
 
   // Reopen last closed tab (active-collection-tabs-only)
   useEffect(() => {
