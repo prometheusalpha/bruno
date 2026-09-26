@@ -24,7 +24,7 @@ Chạy tất cả lệnh từ **thư mục gốc repo** trừ khi ghi rõ khác.
 ## 2. Build shared packages
 
 `npm run dev` không build các package dùng chung, nếu thiếu thì app đóng gói sẽ crash.
-Bắt buộc chạy trước mỗi lần build, hoặc chạy lại khi vừa sửa chúng:
+Bắt buộc chạy trước mỗi lần build nếu vừa sửa chúng:
 
 ```bash
 npm run build:bruno-common

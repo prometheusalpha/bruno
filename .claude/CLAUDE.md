@@ -76,3 +76,7 @@ patterns & gotchas), `cross-platform.md` (Windows file/process/path pitfalls), `
 Read on demand (not auto-loaded): `.claude/reference/architecture.md` — the monorepo map, request
 pipeline, sandbox, core types, and dependency versions. Consult it before cross-package or
 architectural work.
+
+## Build Macos local application
+
+Reference build-bruno-dev.md for detail
