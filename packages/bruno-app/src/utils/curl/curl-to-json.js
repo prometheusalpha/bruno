@@ -209,6 +209,13 @@ const curlToJson = (curlCommand) => {
           password: repr(request.auth.ntlm?.password)
         }
       };
+    } else if (authMode === 'bearer') {
+      requestJson.auth = {
+        mode: 'bearer',
+        bearer: {
+          token: repr(request.auth.bearer?.token)
+        }
+      };
     }
   }
 

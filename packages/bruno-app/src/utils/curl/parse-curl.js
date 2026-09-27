@@ -259,9 +259,10 @@ const normalizeAuthProperties = (request) => {
 };
 
 /**
- * Inspect the Authorization header and decode Basic credentials
+ * Inspect the Authorization header and decode Basic credentials or a Bearer token
  * Returns null when there is no Authorization header, otherwise
- * { headerName, credentials } where credentials is null for non Basic schemes
+ * { headerName, credentials, bearerToken } where credentials is non null only for Basic
+ * and bearerToken only for Bearer; both null for other schemes
  */
 const inspectAuthorizationHeader = (request) => {
   const headerName = Object.keys(request.headers || {}).find((name) => name.toLowerCase() === 'authorization');
@@ -270,21 +271,32 @@ const inspectAuthorizationHeader = (request) => {
   }
 
   const value = request.headers[headerName];
-  const match = typeof value === 'string' ? value.match(/^\s*basic\s+(\S+)\s*$/i) : null;
+  const match = typeof value === 'string' ? value.match(/^\s*([A-Za-z][A-Za-z0-9._-]*)\s+(\S+)\s*$/) : null;
   if (!match) {
-    return { headerName, credentials: null };
+    return { headerName, credentials: null, bearerToken: null };
+  }
+
+  const scheme = match[1].toLowerCase();
+  const credential = match[2];
+
+  if (scheme === 'bearer') {
+    return { headerName, credentials: null, bearerToken: credential };
+  }
+
+  if (scheme !== 'basic') {
+    return { headerName, credentials: null, bearerToken: null };
   }
 
   let decoded;
   try {
-    decoded = Buffer.from(match[1], 'base64').toString('utf8');
+    decoded = Buffer.from(credential, 'base64').toString('utf8');
   } catch (e) {
-    return { headerName, credentials: null };
+    return { headerName, credentials: null, bearerToken: null };
   }
 
   const separatorIndex = decoded.indexOf(':');
   if (separatorIndex === -1) {
-    return { headerName, credentials: null };
+    return { headerName, credentials: null, bearerToken: null };
   }
 
   return {
@@ -292,7 +304,8 @@ const inspectAuthorizationHeader = (request) => {
     credentials: {
       username: decoded.slice(0, separatorIndex),
       password: decoded.slice(separatorIndex + 1)
-    }
+    },
+    bearerToken: null
   };
 };
 
@@ -535,13 +548,21 @@ const postBuildProcessRequest = (request) => {
       // basic credentials win over -u, drop the header so the Auth tab owns them
       delete request.headers[authorization.headerName];
       request.authCredentials = authorization.credentials;
+    } else if (authorization.bearerToken) {
+      // a bearer token wins over -u, drop the header so the Auth tab owns it
+      delete request.headers[authorization.headerName];
+      request.auth = { mode: 'bearer', bearer: { token: authorization.bearerToken } };
+      delete request.authCredentials;
     } else {
-      // a non basic Authorization header wins over -u, keep the header and drop the credentials
+      // an unsupported Authorization scheme wins over -u, keep the header and drop the credentials
       delete request.authCredentials;
     }
   }
 
-  normalizeAuthProperties(request);
+  // request.auth is already final on the bearer path
+  if (!request.auth) {
+    normalizeAuthProperties(request);
+  }
 
   // if method is not set, set it to GET
   if (!request.method) {

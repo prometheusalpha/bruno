@@ -32,4 +32,15 @@ describe('getRequestFromCurlCommand', () => {
     const headerNames = (request.headers || []).map((header) => header.name.toLowerCase());
     expect(headerNames).not.toContain('authorization');
   });
+
+  it('should import Bearer auth from a lowercase authorization header', () => {
+    const curl = `curl --request PUT --url https://api.example.com/product/update --header 'authorization: Bearer eyJhbGciOi.TOKEN' --header 'content-type: application/json' --data '{"a":1}'`;
+
+    const request = getRequestFromCurlCommand(curl);
+
+    expect(request.auth.mode).toBe('bearer');
+    expect(request.auth.bearer).toEqual({ token: 'eyJhbGciOi.TOKEN' });
+    const headerNames = (request.headers || []).map((header) => header.name.toLowerCase());
+    expect(headerNames).toEqual(['content-type']);
+  });
 });

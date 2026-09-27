@@ -105,8 +105,13 @@ describe('parseCurlCommand', () => {
       expect(result).toEqual({
         method: 'get',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer token'
+          'Content-Type': 'application/json'
+        },
+        auth: {
+          mode: 'bearer',
+          bearer: {
+            token: 'token'
+          }
         },
         url: 'https://api.example.com',
         urlWithoutQuery: 'https://api.example.com'
@@ -457,14 +462,67 @@ describe('parseCurlCommand', () => {
       expect(result.headers).toBeUndefined();
     });
 
-    it('should let a non Basic Authorization header win over -u', () => {
+    it('should let a bearer Authorization header win over -u', () => {
       const result = parseCurlCommand(`
         curl -u "user:pass" -H "Authorization: Bearer token" https://api.example.com
       `);
 
+      expect(result.auth).toEqual({
+        mode: 'bearer',
+        bearer: {
+          token: 'token'
+        }
+      });
+      expect(result.headers).toBeUndefined();
+    });
+
+    it('should import a lowercase authorization bearer header into bearer auth', () => {
+      const result = parseCurlCommand(`
+        curl -H "authorization: Bearer eyJhbG.token" https://api.example.com
+      `);
+
+      expect(result.auth).toEqual({
+        mode: 'bearer',
+        bearer: {
+          token: 'eyJhbG.token'
+        }
+      });
+      expect(result.headers).toBeUndefined();
+    });
+
+    it('should import a bearer header with uppercase scheme and extra whitespace', () => {
+      const result = parseCurlCommand(`
+        curl -H "Authorization: BEARER   tok" https://api.example.com
+      `);
+
+      expect(result.auth).toEqual({
+        mode: 'bearer',
+        bearer: {
+          token: 'tok'
+        }
+      });
+      expect(result.headers).toBeUndefined();
+    });
+
+    it('should keep an unknown Authorization scheme as a raw header', () => {
+      const result = parseCurlCommand(`
+        curl -H "Authorization: Token abc" https://api.example.com
+      `);
+
       expect(result.auth).toBeUndefined();
       expect(result.headers).toEqual({
-        Authorization: 'Bearer token'
+        Authorization: 'Token abc'
+      });
+    });
+
+    it('should keep a malformed Basic header as a raw header', () => {
+      const result = parseCurlCommand(`
+        curl -H "Authorization: Basic bm9jb2xvbg==" https://api.example.com
+      `);
+
+      expect(result.auth).toBeUndefined();
+      expect(result.headers).toEqual({
+        Authorization: 'Basic bm9jb2xvbg=='
       });
     });
   });
@@ -693,9 +751,14 @@ describe('parseCurlCommand', () => {
         method: 'post',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer token123',
           'X-Custom-Header': 'custom header',
           'Accept-Encoding': 'deflate, gzip'
+        },
+        auth: {
+          mode: 'bearer',
+          bearer: {
+            token: 'token123'
+          }
         },
         data: '{"name": "John\'s data", "email": "john@example.com", "message": "Don\'t stop believing!", "path": "/home/user/file.txt", "json": {"nested": "value", "array": [1, 2, 3]}}',
         // the Authorization header overrides -u, so no basic auth is imported
@@ -773,9 +836,14 @@ describe('parseCurlCommand', () => {
         method: 'post',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer token123',
           'X-Custom-Header': 'custom header',
           'Accept-Encoding': 'deflate, gzip'
+        },
+        auth: {
+          mode: 'bearer',
+          bearer: {
+            token: 'token123'
+          }
         },
         data: '{"name": "John\'s data", "email": "john@example.com", "message": "Don\'t stop believing!", "path": "/home/user/file.txt", "json": {"nested": "value", "array": [1, 2, 3]}}',
         // the Authorization header overrides -u, so no basic auth is imported
@@ -805,8 +873,13 @@ describe('parseCurlCommand', () => {
         method: 'post',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer token123',
           'Accept-Encoding': 'deflate, gzip'
+        },
+        auth: {
+          mode: 'bearer',
+          bearer: {
+            token: 'token123'
+          }
         },
         data: '{"name": "John\'s data", "email": "john@example.com"}',
         // the Authorization header overrides -u, so no basic auth is imported
@@ -844,8 +917,13 @@ describe('parseCurlCommand', () => {
       expect(result).toEqual({
         method: 'post',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer token123'
+          'Content-Type': 'application/json'
+        },
+        auth: {
+          mode: 'bearer',
+          bearer: {
+            token: 'token123'
+          }
         },
         data: '{"title": "New Post", "content": "Post content"}',
         url: 'https://api.example.com/posts',
