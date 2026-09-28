@@ -8,6 +8,7 @@ import SingleLineEditor from 'components/SingleLineEditor';
 import { updateAuth } from 'providers/ReduxStore/slices/collections';
 import { sendRequest, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
 import StyledWrapper from './StyledWrapper';
+import JwtTokenDetails from './JwtTokenDetails';
 
 const BearerAuth = ({ item, collection, updateAuth, request, save, disabled }) => {
   const dispatch = useDispatch();
@@ -55,6 +56,7 @@ const BearerAuth = ({ item, collection, updateAuth, request, save, disabled }) =
         />
         {showWarning && <SensitiveFieldWarning fieldName="bearer-token" warningMessage={warningMessage} />}
       </div>
+      <JwtTokenDetails token={bearerToken} />
     </StyledWrapper>
   );
 };
