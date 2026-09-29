@@ -320,6 +320,24 @@ describe('parseQueryParams', () => {
       { name: 'tags', value: 'frontend|backend' }
     ]);
   });
+
+  it('should decode percent-encoded values when decode is true', () => {
+    const result = parseQueryParams('start_time=2026-08-31T17%3A00%3A00.000Z', { decode: true });
+    expect(result).toEqual([{ name: 'start_time', value: '2026-08-31T17:00:00.000Z' }]);
+  });
+
+  it('should keep a malformed escape verbatim without dropping the whole query', () => {
+    const result = parseQueryParams('a=1&bad=%ZZ', { decode: true });
+    expect(result).toEqual([
+      { name: 'a', value: '1' },
+      { name: 'bad', value: '%ZZ' }
+    ]);
+  });
+
+  it('should decode an encoded query value into a single param', () => {
+    const result = parseQueryParams('redirect=https%3A%2F%2Fx.com%3Fa%3D1%26b%3D2', { decode: true });
+    expect(result).toEqual([{ name: 'redirect', value: 'https://x.com?a=1&b=2' }]);
+  });
 });
 
 describe('buildQueryString', () => {
@@ -393,6 +411,26 @@ describe('buildQueryString', () => {
     ];
     const result = buildQueryString(params, { encode: true });
     expect(result).toBe('tag=test%23abc&a=x%26y&b=x%3Dy&c=x%3Fy&d=x%2By&e=hello%20world');
+  });
+
+  it('should encode a decoded value exactly once (cURL import round-trip)', () => {
+    const result = buildQueryString([{ name: 'start_time', value: '2026-08-31T17:00:00.000Z' }], { encode: true });
+    expect(result).toBe('start_time=2026-08-31T17%3A00%3A00.000Z');
+  });
+
+  it('should not double-encode an already-encoded value', () => {
+    const result = buildQueryString([{ name: 'start_time', value: '2026-08-31T17%3A00%3A00.000Z' }], { encode: true });
+    expect(result).toBe('start_time=2026-08-31T17%3A00%3A00.000Z');
+  });
+
+  it('should keep structural chars in a decoded value inside one pair', () => {
+    const result = buildQueryString([{ name: 'redirect', value: 'https://x.com?a=1&b=2' }], { encode: true });
+    expect(result).toBe('redirect=https%3A%2F%2Fx.com%3Fa%3D1%26b%3D2');
+  });
+
+  it('should leave variable tokens unencoded', () => {
+    const result = buildQueryString([{ name: 'token', value: '{{apiKey}}' }], { encode: true });
+    expect(result).toBe('token={{apiKey}}');
   });
 });
 

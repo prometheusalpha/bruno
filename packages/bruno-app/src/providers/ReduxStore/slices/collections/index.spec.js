@@ -1,3 +1,7 @@
+jest.mock('nanoid', () => ({
+  customAlphabet: () => () => 'mock-uid'
+}));
+
 import { collectionsSlice } from './index';
 
 const {
@@ -11,7 +15,9 @@ const {
   clearSidebarSelection,
   setLastClickedSidebarUid,
   collapseItem,
-  expandItem
+  expandItem,
+  requestUrlChanged,
+  updateQueryParam
 } = collectionsSlice.actions;
 const reducer = collectionsSlice.reducer;
 
@@ -249,5 +255,72 @@ describe('expandItem', () => {
     expect(expandedFolder.collapsed).toBe(false);
     expect(expandedFolder.items[0].collapsed).toBe(true);
     expect(expandedFolder.items[0].items[0].collapsed).toBe(true);
+  });
+});
+
+describe('requestUrlChanged — cURL query decode flag', () => {
+  const makeRequest = (url) => ({
+    uid: 'item1',
+    type: 'http-request',
+    request: { url, method: 'get', params: [] }
+  });
+
+  it('decodes percent-encoded values when the import flag is set', () => {
+    const next = reducer(
+      makeStateWith(makeRequest('')),
+      requestUrlChanged({
+        collectionUid: 'col1',
+        itemUid: 'item1',
+        url: 'https://api.example.com/report?start_time=2026-08-31T17%3A00%3A00.000Z',
+        decodeQueryParams: true
+      })
+    );
+
+    const params = next.collections[0].items[0].draft.request.params;
+    expect(params).toHaveLength(1);
+    expect(params[0]).toMatchObject({ name: 'start_time', value: '2026-08-31T17:00:00.000Z' });
+  });
+
+  it('leaves values verbatim for hand-typed URLs (no flag)', () => {
+    const next = reducer(
+      makeStateWith(makeRequest('')),
+      requestUrlChanged({
+        collectionUid: 'col1',
+        itemUid: 'item1',
+        url: 'https://api.example.com/report?start_time=2026-08-31T17%3A00%3A00.000Z'
+      })
+    );
+
+    const params = next.collections[0].items[0].draft.request.params;
+    expect(params).toHaveLength(1);
+    expect(params[0].value).toBe('2026-08-31T17%3A00%3A00.000Z');
+  });
+
+  it('rebuilds the URL as a fixed point without splitting decoded & and =', () => {
+    const imported = reducer(
+      makeStateWith(makeRequest('')),
+      requestUrlChanged({
+        collectionUid: 'col1',
+        itemUid: 'item1',
+        url: 'https://api.example.com/go?redirect=https%3A%2F%2Fx.com%3Fa%3D1%26b%3D2',
+        decodeQueryParams: true
+      })
+    );
+
+    const params = imported.collections[0].items[0].draft.request.params;
+    expect(params).toHaveLength(1);
+
+    const next = reducer(
+      imported,
+      updateQueryParam({
+        collectionUid: 'col1',
+        itemUid: 'item1',
+        queryParam: { ...params[0], value: 'https://x.com?a=1&b=2' }
+      })
+    );
+
+    const draft = next.collections[0].items[0].draft;
+    expect(draft.request.url).toBe('https://api.example.com/go?redirect=https%3A%2F%2Fx.com%3Fa%3D1%26b%3D2');
+    expect(draft.request.params.filter((p) => p.name === 'redirect')).toHaveLength(1);
   });
 });

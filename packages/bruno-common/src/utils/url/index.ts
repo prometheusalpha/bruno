@@ -81,21 +81,55 @@ interface ExtractQueryParamsOptions {
   stripFragment?: boolean;
 }
 
-// Per PR #5507's design contract: when encode is true, run encodeURIComponent on the
-// value even if it's already encoded. Pre-encoded inputs intentionally double-encode
-// (e.g. `%23` → `%2523`) — useful for redirect URLs where the server expects to
-// receive the encoded form after one round of URL-decoding.
+// decodeURIComponent throws on bare '%' or malformed %XX. Forgiving variant that
+// decodes well-formed escapes and leaves anything else alone. Exported so other
+// modules can use it without each one inventing its own try/catch. Not used
+// inside encodeUrl itself (PR #5507's design is content-blind — no decode-encode).
+const safeDecodeURIComponent = (s: string): string => {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s.replace(/%[0-9A-Fa-f]{2}/g, (m) => {
+      try {
+        return decodeURIComponent(m);
+      } catch {
+        return m;
+      }
+    });
+  }
+};
+
+// Counterpart of `parseQueryParams(query, { decode: true })` for the
+// params → URL rebuild. Idempotent: `safeDecodeURIComponent` first collapses
+// any pre-encoded input to its raw form, so the single `encodeURIComponent`
+// pass always yields exactly one level of encoding (`%3A` → `:` → `%3A`,
+// never `%253A`). This is what keeps `&` and `=` inside a decoded value from
+// being re-read as query delimiters when the URL is rebuilt. `{{var}}` tokens
+// pass through untouched — `interpolateVars` resolves them at send time, long
+// after this string is built, so encoding the braces would break them.
+const encodeQueryParamPart = (part: string): string =>
+  String(part ?? '')
+    .split(/(\{\{[^}]*\}\})/)
+    .map((chunk) => (chunk.startsWith('{{') ? chunk : encodeURIComponent(safeDecodeURIComponent(chunk))))
+    .join('');
+
+// Builds the `key=value&…` string from a params array. With `encode: true` every
+// name/value goes through `encodeQueryParamPart`, so the result carries exactly
+// one level of percent-encoding no matter whether the input was raw or already
+// encoded — which is what makes the params → URL rebuild a fixed point. The
+// content-blind double-encoding contract of PR #5507 lives in `encodeUrl` (the
+// wire boundary), not here.
 function buildQueryString(paramsArray: QueryParam[], { encode = false }: BuildQueryStringOptions = {}): string {
   return paramsArray
     .filter(({ name }) => typeof name === 'string' && name.trim().length > 0)
     .map(({ name, value }) => {
-      const finalName = encode ? encodeURIComponent(name) : name;
+      const finalName = encode ? encodeQueryParamPart(name) : name;
 
       if (value === undefined) {
         return finalName;
       }
 
-      const finalValue = encode ? encodeURIComponent(value) : value;
+      const finalValue = encode ? encodeQueryParamPart(value) : value;
       return `${finalName}=${finalValue}`;
     })
     .join('&');
@@ -119,10 +153,10 @@ function parseQueryParams(query: string, { decode = false, stripFragment = true 
 
       // Distinguish between ?param (no '=' at all) and ?param= (has '=' with empty value)
       const hasEqualsSign = pair.includes('=');
-      const value = hasEqualsSign ? (decode ? decodeURIComponent(valueParts.join('=')) : valueParts.join('=')) : undefined;
+      const value = hasEqualsSign ? (decode ? safeDecodeURIComponent(valueParts.join('=')) : valueParts.join('=')) : undefined;
 
       return {
-        name: decode ? decodeURIComponent(name) : name,
+        name: decode ? safeDecodeURIComponent(name) : name,
         value
       };
     }).filter((param): param is NonNullable<typeof param> => param !== null);
@@ -134,24 +168,6 @@ function parseQueryParams(query: string, { decode = false, stripFragment = true 
   }
 }
 
-// decodeURIComponent throws on bare '%' or malformed %XX. Forgiving variant that
-// decodes well-formed escapes and leaves anything else alone. Exported so other
-// modules can use it without each one inventing its own try/catch. Not used
-// inside encodeUrl itself (PR #5507's design is content-blind — no decode-encode).
-const safeDecodeURIComponent = (s: string): string => {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s.replace(/%[0-9A-Fa-f]{2}/g, (m) => {
-      try {
-        return decodeURIComponent(m);
-      } catch {
-        return m;
-      }
-    });
-  }
-};
-
 // Path-side encoding is idempotent: decode any already-encoded sequence first,
 // then re-encode. The reason — `interpolateVars` in the runtime goes through
 // `new URL(url).pathname`, which auto-encodes path chars (`"` → `%22`,
@@ -161,10 +177,12 @@ const safeDecodeURIComponent = (s: string): string => {
 // double-encoded. By decoding-then-encoding we collapse both cases (raw input
 // + already-encoded input) to the same single-encoded form.
 //
-// NOTE: this idempotency is path-side only. The QUERY side stays content-blind
-// per PR #5507's contract — query values are user data and pre-encoded inputs
-// are a legitimate signal that the user wants the encoding to survive a server
-// URL-decode pass (the redirect-URL use case). See `encodeUrl` below.
+// NOTE: this idempotency applies to the *wire-boundary* query handling only.
+// `encodeUrl` below stays content-blind per PR #5507's contract — query values
+// are user data and pre-encoded inputs are a legitimate signal that the user
+// wants the encoding to survive a server URL-decode pass (the redirect-URL use
+// case). The params → URL rebuild takes the opposite, idempotent route via
+// `encodeQueryParamPart` above.
 const encodePathSegments = (path: string): string =>
   path
     .split('/')
@@ -341,6 +359,7 @@ export {
   buildQueryString,
   stripOrigin,
   safeDecodeURIComponent,
+  encodeQueryParamPart,
   extractMockRoutePath,
   getMockResponseRouteKey,
   isSameOrigin,

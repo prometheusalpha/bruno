@@ -7,6 +7,7 @@ import {
   IconChevronRight,
   IconDots,
   IconFilePlus,
+  IconApi,
   IconFolderPlus,
   IconPlayerPlay,
   IconEdit,
@@ -70,6 +71,7 @@ import { useSidebarAccordion } from 'components/Sidebar/SidebarAccordionContext'
 import useKeybinding from 'hooks/useKeybinding';
 import useSidebarSelectionClick from 'hooks/useSidebarSelectionClick';
 import { startBlockedDragTracking } from 'utils/dragBlockedCursor';
+import { createRequest } from 'utils/collections/emptyStateRequest';
 import { clearSidebarSelection } from 'providers/ReduxStore/slices/collections/index';
 
 const CollectionItemRow = ({
@@ -428,6 +430,12 @@ const CollectionItemRow = ({
           onClick: () => setNewRequestModalOpen(true)
         },
         {
+          id: 'new-http-request',
+          leftSection: IconApi,
+          label: 'New HTTP Request',
+          onClick: handleNewHttpRequest
+        },
+        {
           id: 'new-folder',
           leftSection: IconFolderPlus,
           label: 'New Folder',
@@ -679,6 +687,13 @@ const CollectionItemRow = ({
   const handleCopyItem = () => {
     dispatch(copyRequest(item));
     toast.success(`${getItemTypeLabel(item)} copied`);
+  };
+
+  // One-click new HTTP request: name/file is auto-generated (Untitled, Untitled1, ...),
+  // no modal. Errors surface as a toast from createRequest.
+  const handleNewHttpRequest = () => {
+    if (!isFolder) return;
+    createRequest({ dispatch, collection, itemUid: item.uid, requestType: 'http' });
   };
 
   // One-click clone: display name becomes "<source> copy"; the filesystem name

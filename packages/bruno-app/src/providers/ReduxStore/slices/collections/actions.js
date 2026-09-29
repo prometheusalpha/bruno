@@ -1403,7 +1403,8 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
     auth,
     settings,
     requestPaneTab,
-    isTransient = false
+    isTransient = false,
+    decodeQueryParams = false
   } = params;
 
   return new Promise((resolve, reject) => {
@@ -1417,7 +1418,7 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
     const tempDirectory = isTransient ? state.collections.tempDirectories?.[collectionUid] : null;
 
     const parts = splitOnFirst(requestUrl, '?');
-    const queryParams = parseQueryParams(parts[1]);
+    const queryParams = parseQueryParams(parts[1], { decode: decodeQueryParams });
     each(queryParams, (urlParam) => {
       urlParam.enabled = true;
       urlParam.type = 'query';

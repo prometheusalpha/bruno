@@ -6,7 +6,11 @@ import { sanitizeName } from 'utils/common/regex';
 import { formatIpcError } from 'utils/common/error';
 import toast from 'react-hot-toast';
 
-const createRequest = async ({ dispatch, collection, itemUid, requestType }) => {
+/**
+ * Creates a request of the given type inside `itemUid`'s location, using an
+ * auto-generated unique name (Untitled, Untitled1, ...). No modal involved.
+ */
+export const createRequest = async ({ dispatch, collection, itemUid, requestType }) => {
   try {
     const uniqueName = await generateUniqueRequestName(collection, 'Untitled', itemUid);
     const filename = sanitizeName(uniqueName);

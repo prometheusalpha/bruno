@@ -117,7 +117,8 @@ const QueryUrl = ({ item, collection, handleRun }) => {
       dispatch(requestUrlChanged({
         itemUid: item.uid,
         collectionUid: collection.uid,
-        url: request.url
+        url: request.url,
+        decodeQueryParams: true
       }));
 
       setTimeout(() => {
@@ -205,7 +206,8 @@ const QueryUrl = ({ item, collection, handleRun }) => {
         requestUrlChanged({
           itemUid: item.uid,
           collectionUid: collection.uid,
-          url: request.url
+          url: request.url,
+          decodeQueryParams: true
         })
       );
 

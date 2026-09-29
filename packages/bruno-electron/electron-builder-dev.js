@@ -7,7 +7,8 @@
 //   - identity: null, afterSign: null → no certificate / notarization needed
 //
 // Usage (from packages/bruno-electron):
-//   npx electron-builder --mac --arm64 --dir --config electron-builder-dev.js
+//   npx electron-builder --mac --arm64 --dir   --config electron-builder-dev.js  # .app only
+//   npx electron-builder --mac --arm64 --dmg   --config electron-builder-dev.js  # .dmg
 
 const base = require('./electron-builder-config');
 
@@ -22,7 +23,10 @@ module.exports = {
   },
   mac: {
     ...base.mac,
-    target: [{ target: 'dir', arch: ['arm64'] }],
+    target: [
+      { target: 'dir', arch: ['arm64'] },
+      { target: 'dmg', arch: ['arm64'] }
+    ],
     identity: null,
     notarize: false,
     // Omitted on purpose — see header.

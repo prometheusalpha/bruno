@@ -704,6 +704,24 @@ describe('parseCurlCommand', () => {
         urlWithoutQuery: 'https://api.example.com/v1/users/123'
       });
     });
+
+    it('should keep percent-encoded query values verbatim (decode happens downstream)', () => {
+      const result = parseCurlCommand(
+        `curl 'https://api.example.com/report?start_time=2026-08-31T17%3A00%3A00.000Z'`
+      );
+
+      expect(result.queries).toEqual([{ name: 'start_time', value: '2026-08-31T17%3A00%3A00.000Z' }]);
+    });
+
+    it('should split on & before decoding, so an encoded & stays inside one value', () => {
+      const result = parseCurlCommand(
+        `curl 'https://api.example.com/go?redirect=https%3A%2F%2Fx.com%3Fa%3D1%26b%3D2'`
+      );
+
+      expect(result.queries).toEqual([
+        { name: 'redirect', value: 'https%3A%2F%2Fx.com%3Fa%3D1%26b%3D2' }
+      ]);
+    });
   });
 
   describe('handling URLs without protocols', () => {

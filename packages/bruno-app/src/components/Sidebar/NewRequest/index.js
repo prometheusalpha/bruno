@@ -224,7 +224,8 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
             headers: request.headers,
             body: request.body,
             auth: request.auth,
-            settings: settings
+            settings: settings,
+            decodeQueryParams: true
           })
         )
           .then(() => {
