@@ -1313,17 +1313,19 @@ describe('generateSnippet – encodeUrl setting', () => {
     expect(result).not.toContain('%253D');
   });
 
-  it('should double-encode pre-encoded %20 when encodeUrl is true', async () => {
+  it('should keep pre-encoded %20 and %3D at one level when encodeUrl is true', async () => {
     const preEncodedUrl = 'https://example.com/api?token=abc%20123%3D%3D&type=test';
     const item = {
       ...makeItem(preEncodedUrl, { encodeUrl: true }),
       rawUrl: preEncodedUrl
     };
     const result = await generateSnippet({ language, item, collection: baseCollection, shouldInterpolate: false });
-    // %20 → %2520 because encodeURIComponent encodes the literal '%' in the already-encoded value
-    expect(result).toContain('%2520');
-    // %3D → %253D for the same reason
-    expect(result).toContain('%253D');
+    // The snippet must show the bytes the request actually sends. Promoting
+    // %20 → %2520 here would make Copy as Code disagree with the wire.
+    expect(result).toContain('%20');
+    expect(result).toContain('%3D%3D');
+    expect(result).not.toContain('%2520');
+    expect(result).not.toContain('%253D');
   });
 
   it('should preserve OData-style paths with parenthesized params when encodeUrl is false', async () => {

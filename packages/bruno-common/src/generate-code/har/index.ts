@@ -15,8 +15,8 @@
  *
  * By centralising the work here:
  *   - There is exactly one place that decides what reaches the wire.
- *   - PR #5507's content-blind double-encoding contract is honored by
- *     calling `encodeUrl()` from `../utils/url` (no decode-then-encode).
+ *   - The wire encoding lives in one place too: `encodeUrl()` from
+ *     `../utils/url`, which encodes path and query exactly once.
  *   - The HAR `url` field is path-only; `queryString` is the sole source
  *     of truth for the rendered query string, which sidesteps HTTPSnippet's
  *     legacy `url.parse(..., true, true)` polyfill that strips trailing
@@ -29,7 +29,7 @@
 
 import { cloneDeep, find, get } from 'lodash';
 import interpolate, { interpolateObject } from '../../interpolate';
-import { DEFAULT_SCHEME, encodeUrl, getExplicitScheme, hasExplicitScheme, parseQueryParams, patternHasher } from '../../utils';
+import { DEFAULT_SCHEME, encodeUrl, getExplicitScheme, hasExplicitScheme, parseQueryParams, patternHasher, safeDecodeURIComponent } from '../../utils';
 import { signEdgeGridRequest } from './edgegrid';
 
 // ---------------------------------------------------------------------------
@@ -265,12 +265,10 @@ const interpolateRequest = (request: BrunoRequest, variables: Record<string, unk
  * path-param value — raw when `encode=false`, single-encoded via
  * `encodeURIComponent` when `encode=true`.
  *
- * This indirection prevents the double-encoding that fall out of doing
- * `substitute-with-encoding → encodeUrl` back to back: the second pass
- * would content-blind-encode the already-encoded segment (e.g. `aaa%2Fbbb`
- * → `aaa%252Fbbb`) per PR #5507. By hiding path-param positions behind
- * placeholders during the `encodeUrl` pass, encoding happens exactly once
- * — when the placeholders are restored.
+ * This indirection prevents the double-encoding that would fall out of doing
+ * `substitute-with-encoding → encodeUrl` back to back. By hiding path-param
+ * positions behind placeholders during the `encodeUrl` pass, encoding happens
+ * exactly once — when the placeholders are restored.
  */
 const hashPathParamPositions = (
   url: string,
@@ -493,7 +491,7 @@ const buildQueryString = (
   // callers that bypass the params syncer.
   let params: { name: string; value: string }[];
   if (enabledParams.length > 0) {
-    params = enabledParams.map((p) => ({ name: p.name, value: p.value }));
+    params = enabledParams.map((p) => ({ name: safeDecodeURIComponent(p.name), value: safeDecodeURIComponent(p.value) }));
   } else if (urlForFallback) {
     // `#` is data (Option C — see encodeUrl), so the query slice extends to
     // end-of-string and parseQueryParams is told NOT to split on `#`.
@@ -502,7 +500,7 @@ const buildQueryString = (
     const queryIdx = urlForFallback.indexOf('?');
     const queryString = queryIdx >= 0 ? urlForFallback.slice(queryIdx + 1) : '';
     params = queryString
-      ? parseQueryParams(queryString, { decode: false, stripFragment: false }).map((p) => ({
+      ? parseQueryParams(queryString, { decode: true, stripFragment: false }).map((p) => ({
           name: p.name,
           value: p.value == null ? '' : p.value
         }))
@@ -635,7 +633,7 @@ export async function buildHar(input: BuildHarInput): Promise<BuildHarOutput> {
   // Step 4 — Apply `encodeUrl()` to the URL with placeholders. Placeholders
   // are alphanumeric+dash, so `encodeURIComponent` (used per path segment
   // inside `encodeUrl`) leaves them untouched. The rest of the path and
-  // query are encoded per the existing content-blind contract (PR #5507).
+  // query go through `encodeUrl`'s single encode pass.
   const encodedUrlWithPlaceholders = encodeUrl(urlWithPlaceholders);
 
   // Step 5 — Restore placeholders. `rawUrl` always uses raw values (for the
@@ -665,10 +663,10 @@ export async function buildHar(input: BuildHarInput): Promise<BuildHarOutput> {
   // Step 7 — Query string array. HAR's queryString is the single source of
   // truth for what HTTPSnippet renders into the URL slot. The URL itself
   // (next step) has its query stripped to avoid the legacy-polyfill merge bug.
-  // The fallback source is the *hashed* URL rather than the encoded one, so that
-  // when it is used its values carry user-typed bytes: feeding the encoded URL
-  // here would double-encode (`:` → `%3A` from encodeUrl, then `%3A` → `%253A`
-  // from HTTPSnippet's encodeURIComponent pass).
+  // Values are decoded here because HTTPSnippet runs `encodeURIComponent` over
+  // every queryString value — it is the encoder for this path, so handing it
+  // pre-encoded bytes would encode them twice (`%20` → `%2520`). The fallback
+  // source is the *hashed* URL rather than the encoded one, for the same reason.
   //
   // Hashing the assembled values is what keeps `{{var}}` alive in a query when the
   // caller wants templates preserved. HTTPSnippet runs encodeURIComponent over every

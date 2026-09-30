@@ -41,7 +41,7 @@ describe('buildHar — basic HAR shape', () => {
   });
 });
 
-describe('buildHar — encodeUrl toggle (PR #5507 content-blind contract)', () => {
+describe('buildHar — encodeUrl toggle', () => {
   it('OFF: rawUrl matches user-typed URL (path-param substitution happens upstream for Generate Code)', async () => {
     const { rawUrl } = await buildHar({
       request: baseRequest({
@@ -66,7 +66,7 @@ describe('buildHar — encodeUrl toggle (PR #5507 content-blind contract)', () =
     expect(encodedUrl).toBe('https://example.com/api?name=John%20Doe');
   });
 
-  it('ON: pre-encoded inputs INTENTIONALLY double-encode (PR #5507)', async () => {
+  it('ON: pre-encoded inputs stay at one level of encoding', async () => {
     const { encodedUrl } = await buildHar({
       request: baseRequest({
         url: 'https://example.com/api?name=John%20Doe',
@@ -75,8 +75,9 @@ describe('buildHar — encodeUrl toggle (PR #5507 content-blind contract)', () =
       }),
       shouldInterpolate: false
     });
-    // %20 → %2520 — content-blind encoding, exactly what redirect-URL flows require.
-    expect(encodedUrl).toContain('John%2520Doe');
+    // %20 survives — it is not promoted to %2520, so the snippet matches the
+    // bytes the request actually puts on the wire.
+    expect(encodedUrl).toContain('John%20Doe');
   });
 
   it('ON: # in URL is encoded as %23 (Option C — # is data, not a fragment delimiter)', async () => {
@@ -869,11 +870,10 @@ describe('buildHar — regression: known issues map to single fixes', () => {
     });
     expect(rawUrl).toBe('https://example.com/users/aaa/bbb/profile');
     // Toggle ON — path-param value is SINGLE-encoded (`/` → `%2F`). The
-    // placeholder-hash flow prevents `encodeUrl()` from double-encoding the
-    // segment: path-param positions are replaced with URL-safe placeholders
-    // before `encodeUrl()` runs, then restored with `encodeURIComponent(value)`
-    // afterwards. So `aaa/bbb` → `aaa%2Fbbb` (single-encoded), not
-    // `aaa%252Fbbb` (which would be the content-blind double-encoded form).
+    // placeholder-hash flow keeps path-param positions out of `encodeUrl()`'s
+    // encode pass: they are replaced with URL-safe placeholders before it runs,
+    // then restored with `encodeURIComponent(value)` afterwards. So `aaa/bbb`
+    // → `aaa%2Fbbb`, and a pre-encoded `aaa%2Fbbb` survives as `aaa%2Fbbb`.
     expect(encodedUrl).toContain('aaa%2Fbbb');
     expect(encodedUrl).not.toContain('aaa%252Fbbb');
   });
@@ -1037,8 +1037,9 @@ describe('buildHar — path-param substitution matrix (toggle OFF)', () => {
 
 // ---- Phase C.1: query encoding matrix (mirrors e2e fixtures) ------------
 // Each scenario asserts both rawUrl (OFF behavior — bytes preserved) and
-// encodedUrl (ON behavior — encoded per Option C: `#` is data, content-blind
-// per PR #5507). The pairs cover every distinct query-encoding scenario in
+// encodedUrl (ON behavior — encoded per Option C: `#` is data). Encoding
+// happens exactly once, so already-encoded input is left at that level. The
+// pairs cover every distinct query-encoding scenario in
 // `tests/request/generate-code/collection/requests/`.
 
 describe('buildHar — query encoding matrix (mirror e2e fixtures)', () => {
@@ -1059,10 +1060,10 @@ describe('buildHar — query encoding matrix (mirror e2e fixtures)', () => {
       raw: 'https://example.com/api?name=John Doe&age=25'
     },
     {
-      name: 'pre-encoded (PR #5507 content-blind double-encode)',
+      name: 'pre-encoded (stays single-encoded)',
       url: 'https://example.com/api?name=John%20Doe&email=john%40example.com',
       params: [{ name: 'name', value: 'John%20Doe' }, { name: 'email', value: 'john%40example.com' }],
-      encoded: 'https://example.com/api?name=John%2520Doe&email=john%2540example.com',
+      encoded: 'https://example.com/api?name=John%20Doe&email=john%40example.com',
       raw: 'https://example.com/api?name=John%20Doe&email=john%40example.com'
     },
     {
@@ -1108,13 +1109,13 @@ describe('buildHar — query encoding matrix (mirror e2e fixtures)', () => {
       raw: 'https://example.com/filter?tags=a,b,c&time=10:30'
     },
     {
-      name: 'canonical PR #5507 redirect with pre-encoded chars',
+      name: 'redirect with pre-encoded chars (stays single-encoded)',
       url: 'https://auth.example.com/login?redirect=https%3A%2F%2Fother.com%2Fcb&token=abc%2520xyz',
       params: [
         { name: 'redirect', value: 'https%3A%2F%2Fother.com%2Fcb' },
         { name: 'token', value: 'abc%2520xyz' }
       ],
-      encoded: 'https://auth.example.com/login?redirect=https%253A%252F%252Fother.com%252Fcb&token=abc%252520xyz',
+      encoded: 'https://auth.example.com/login?redirect=https%3A%2F%2Fother.com%2Fcb&token=abc%2520xyz',
       raw: 'https://auth.example.com/login?redirect=https%3A%2F%2Fother.com%2Fcb&token=abc%2520xyz'
     },
     {
@@ -1624,10 +1625,10 @@ describe('buildHar — # encoding scenarios (decision-tree coverage)', () => {
     expect(on.encodedUrl).toBe('http://localhost:6000/request-echo?query=aaa%23bbb');
   });
 
-  it('Scenario 2b: pre-encoded query (?query=aaa%23bbb) — ON double-encodes %23 → %2523', async () => {
-    // Pre-encoded URL bar — `%23` is in the typed input. Per PR #5507's
-    // content-blind contract, ON mode re-encodes content-blindly so `%23`
-    // becomes `%2523` (one more encoding pass). OFF preserves byte-for-byte.
+  it('Scenario 2b: pre-encoded query (?query=aaa%23bbb) — ON leaves %23 at one level', async () => {
+    // A pre-encoded URL bar must not be re-encoded. `%23` is the user's own
+    // escape for a literal `#`; promoting it to `%2523` would make the snippet
+    // disagree with what the request actually sends. OFF preserves bytes.
     const url = 'https://example.com/api?query=aaa%23bbb';
     const off = await buildHar({
       request: baseRequest({
@@ -1647,7 +1648,7 @@ describe('buildHar — # encoding scenarios (decision-tree coverage)', () => {
     });
 
     expect(off.rawUrl).toBe('https://example.com/api?query=aaa%23bbb');
-    expect(on.encodedUrl).toBe('https://example.com/api?query=aaa%2523bbb');
+    expect(on.encodedUrl).toBe('https://example.com/api?query=aaa%23bbb');
   });
 
   it('Scenario 3: # in path-param value with trailing path (:id=john#doe, /users/:id/profile)', async () => {
@@ -1676,8 +1677,7 @@ describe('buildHar — # encoding scenarios (decision-tree coverage)', () => {
   it('Scenario 4b: pre-encoded issue tracker path (/issues/%231234) — idempotent path encoding', async () => {
     // Pre-encoded URL bar with `%23` in the path. Path-side encoding is
     // idempotent (decode-then-encode via safeDecodeURIComponent), so ON mode
-    // keeps `%231234` exactly — it does NOT double-encode like the query side.
-    // This is the key asymmetry between path and query encoding contracts.
+    // keeps `%231234` exactly — the same rule the query side now follows.
     const url = 'https://example.com/issues/%231234';
     const off = await buildHar({ request: baseRequest({ url, settings: { encodeUrl: false } }), shouldInterpolate: false });
     const on = await buildHar({ request: baseRequest({ url, settings: { encodeUrl: true } }), shouldInterpolate: false });

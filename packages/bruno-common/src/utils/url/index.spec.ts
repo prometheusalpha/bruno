@@ -182,57 +182,101 @@ describe('encodeUrl', () => {
       expect(encodeUrl(url)).toBe(expected);
     });
 
-    it('should handle already encoded URLs', () => {
+    it('should leave already encoded URLs at one level of encoding', () => {
       const url = 'https://example.com/api?name=john%20doe&email=john%40example.com';
-      const expected = 'https://example.com/api?name=john%2520doe&email=john%2540example.com';
+      const expected = 'https://example.com/api?name=john%20doe&email=john%40example.com';
       expect(encodeUrl(url)).toBe(expected);
     });
 
     it('should handle pipe operator in already encoded URLs', () => {
       const url = 'https://example.com/api?filter=status%7Cactive&sort=name%7Casc';
-      const expected = 'https://example.com/api?filter=status%257Cactive&sort=name%257Casc';
+      const expected = 'https://example.com/api?filter=status%7Cactive&sort=name%7Casc';
       expect(encodeUrl(url)).toBe(expected);
     });
   });
 
-  describe('PR #5507 contract — content-blind double-encoding (intentional)', () => {
-    // These assertions are the canary that proves no decode-encode wrap was slipped
-    // into the encoder. If any of them start failing, the contract has been broken.
+  describe('idempotent query encoding — raw and pre-encoded inputs converge', () => {
+    // The URL bar and the params table are two views of one value, so the wire
+    // URL must not depend on which view the user last typed into. Each pair below
+    // asserts that: the raw form and its pre-encoded twin encode to the same bytes.
 
-    it('should double-encode pre-encoded space in query value (%20 → %2520)', () => {
-      const url = 'https://example.com/api?name=John%20Doe';
-      const expected = 'https://example.com/api?name=John%2520Doe';
-      expect(encodeUrl(url)).toBe(expected);
+    it('should encode a raw space exactly as it encodes a pre-encoded %20', () => {
+      expect(encodeUrl('https://example.com/api?name=John Doe')).toBe('https://example.com/api?name=John%20Doe');
+      expect(encodeUrl('https://example.com/api?name=John%20Doe')).toBe('https://example.com/api?name=John%20Doe');
     });
 
-    it('should double-encode pre-encoded @ in query value (%40 → %2540)', () => {
+    it('should not promote a pre-encoded @ to %2540', () => {
       const url = 'https://example.com/api?email=john%40example.com';
-      const expected = 'https://example.com/api?email=john%2540example.com';
-      expect(encodeUrl(url)).toBe(expected);
+      expect(encodeUrl(url)).toBe(url);
     });
 
-    it('should double-encode pre-encoded pipe in query value (%7C → %257C)', () => {
+    it('should not promote a pre-encoded pipe to %257C', () => {
       const url = 'https://example.com/api?filter=status%7Cactive&sort=name%7Casc';
-      const expected = 'https://example.com/api?filter=status%257Cactive&sort=name%257Casc';
-      expect(encodeUrl(url)).toBe(expected);
+      expect(encodeUrl(url)).toBe(url);
     });
 
-    it('should double-encode redirect URL with pre-encoded chars (the canonical #5507 case)', () => {
+    it('should keep a pre-encoded redirect URL single-encoded', () => {
       const url = 'https://auth.example.com/login?redirect=https%3A%2F%2Fother.com%2Fcb';
-      const expected = 'https://auth.example.com/login?redirect=https%253A%252F%252Fother.com%252Fcb';
-      expect(encodeUrl(url)).toBe(expected);
+      expect(encodeUrl(url)).toBe(url);
     });
 
-    it('should double-encode pre-encoded %25 → %2525 (single % → %25 same source bytes)', () => {
+    it('should keep a pre-encoded %25 at one level', () => {
       const url = 'https://example.com/api?coupon=50%25';
-      const expected = 'https://example.com/api?coupon=50%2525';
-      expect(encodeUrl(url)).toBe(expected);
+      expect(encodeUrl(url)).toBe(url);
+    });
+
+    it('should keep a pre-encoded # as data, not %2523', () => {
+      const url = 'https://example.com/api?token=abc%23def';
+      expect(encodeUrl(url)).toBe(url);
+    });
+
+    it('should encode a raw timestamp colon the same as a pre-encoded %3A', () => {
+      const raw = 'https://api.example.com/report?start_time=2026-08-31T17:00:00.000Z';
+      const encoded = 'https://api.example.com/report?start_time=2026-08-31T17%3A00%3A00.000Z';
+      const wire = 'https://api.example.com/report?start_time=2026-08-31T17%3A00%3A00.000Z';
+      expect(encodeUrl(raw)).toBe(wire);
+      expect(encodeUrl(encoded)).toBe(wire);
     });
 
     it('should encode bare % once to %25 in query value', () => {
       const url = 'https://example.com/api?discount=50%';
       const expected = 'https://example.com/api?discount=50%25';
       expect(encodeUrl(url)).toBe(expected);
+    });
+  });
+
+  // The bug this guards: the URL bar and the params table are two editors for
+  // one value. Typing in the bar goes through `parseQueryParams(..., {decode:
+  // true })`; editing the table goes through `buildQueryString(..., {encode:
+  // true })` and rewrites the bar. Both must reach the wire as the same bytes,
+  // and neither may land a second level of encoding.
+  describe('URL bar and params table are two views of one value', () => {
+    const WIRE = 'https://api.example.com/report?start_time=2026-08-31T17%3A00%3A00.000Z';
+    const queryOf = (url: string) => url.slice(url.indexOf('?') + 1);
+
+    it('should produce the same wire query whether the value was typed or tab-edited', () => {
+      const typed = 'https://api.example.com/report?start_time=2026-08-31T17%3A00%3A00.000Z';
+      const base = 'https://api.example.com/report';
+
+      // typed into the URL bar: the table is parsed out of it, then the table
+      // rebuild rewrites the bar through the shared encoder
+      const rebuilt = buildQueryString(parseQueryParams(queryOf(typed), { decode: true }), { encode: true });
+      expect(encodeUrl(`${base}?${rebuilt}`)).toBe(WIRE);
+
+      // edited in the params table: the bar is rewritten verbatim from the table
+      expect(encodeUrl(typed)).toBe(WIRE);
+    });
+
+    it('should not accumulate encoding across repeated table edits', () => {
+      let query = 'q=2026-08-31T17%3A00%3A00.000Z';
+
+      for (let i = 0; i < 3; i++) {
+        query = buildQueryString(parseQueryParams(query, { decode: true }), { encode: true });
+      }
+
+      expect(encodeUrl(`https://api.example.com/report?${query}`)).toBe(
+        'https://api.example.com/report?q=2026-08-31T17%3A00%3A00.000Z'
+      );
     });
   });
 

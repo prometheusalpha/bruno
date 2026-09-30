@@ -60,7 +60,8 @@ const QueryUrl = ({ item, collection, handleRun }) => {
       requestUrlChanged({
         itemUid: item.uid,
         collectionUid: collection.uid,
-        url: finalUrl
+        url: finalUrl,
+        decodeQueryParams: true
       })
     );
 

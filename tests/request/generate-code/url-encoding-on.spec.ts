@@ -17,14 +17,16 @@ test.describe('Generate Code – URL Encoding ON', () => {
       await closeGenerateCodeDialog(page);
     });
 
-    test('double-encodes pre-encoded values per PR #5507 contract (%20 → %2520, %40 → %2540)', async ({ pageWithUserData: page }) => {
-      // Canary that proves no decode-encode wrap was slipped into the encoder.
+    test('leaves pre-encoded values at one encoding level (%20 stays %20, %40 stays %40)', async ({ pageWithUserData: page }) => {
+      // The snippet has to match the wire, and the wire is encoded exactly once.
       await openCollection(page, COLLECTION);
       await openRequestInFolder(page, FOLDER, 'query-preencoded');
       await setUrlEncoding(page, true);
 
       const snippet = await getGeneratedSnippet(page);
-      expect(snippet).toContain('http://localhost:8081/api/echo/anything/api?name=John%2520Doe&email=john%2540example.com');
+      expect(snippet).toContain('http://localhost:8081/api/echo/anything/api?name=John%20Doe&email=john%40example.com');
+      expect(snippet).not.toContain('%2520');
+      expect(snippet).not.toContain('%2540');
 
       await closeGenerateCodeDialog(page);
     });
@@ -95,20 +97,17 @@ test.describe('Generate Code – URL Encoding ON', () => {
       await closeGenerateCodeDialog(page);
     });
 
-    test('double-encodes redirect URL with all special chars pre-encoded (canonical PR #5507 case)', async ({ pageWithUserData: page }) => {
-      // Same fixture URL the OFF spec uses. ON mode walks each %XX up one
-      // encoding level (%3A → %253A, %2F → %252F), and the already-double-
-      // encoded %2520 goes to %252520 — proving the encoder is content-blind
-      // and runs encodeURIComponent regardless of pre-encoding state. This
-      // is the contract redirect URLs depend on: after one server-side
-      // URL-decode the value comes back single-encoded.
+    test('leaves a redirect URL with all special chars pre-encoded at one level', async ({ pageWithUserData: page }) => {
+      // Same fixture URL the OFF spec uses. With encoding on, each %XX is decoded
+      // and re-encoded once, so the rendered value matches the OFF output: a
+      // `%3A` the user typed survives instead of climbing to `%253A`.
       await openCollection(page, COLLECTION);
       await openRequestInFolder(page, FOLDER, 'query-double-encode');
       await setUrlEncoding(page, true);
 
       const snippet = await getGeneratedSnippet(page);
       expect(snippet).toContain(
-        'http://localhost:8081/api/echo/anything/login?redirect=https%253A%252F%252Fother.com%252Fcb&token=abc%252520xyz'
+        'http://localhost:8081/api/echo/anything/login?redirect=https%3A%2F%2Fother.com%2Fcb&token=abc%2520xyz'
       );
 
       await closeGenerateCodeDialog(page);

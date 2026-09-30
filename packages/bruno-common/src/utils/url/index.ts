@@ -83,8 +83,7 @@ interface ExtractQueryParamsOptions {
 
 // decodeURIComponent throws on bare '%' or malformed %XX. Forgiving variant that
 // decodes well-formed escapes and leaves anything else alone. Exported so other
-// modules can use it without each one inventing its own try/catch. Not used
-// inside encodeUrl itself (PR #5507's design is content-blind — no decode-encode).
+// modules can use it without each one inventing its own try/catch.
 const safeDecodeURIComponent = (s: string): string => {
   try {
     return decodeURIComponent(s);
@@ -117,8 +116,9 @@ const encodeQueryParamPart = (part: string): string =>
 // name/value goes through `encodeQueryParamPart`, so the result carries exactly
 // one level of percent-encoding no matter whether the input was raw or already
 // encoded — which is what makes the params → URL rebuild a fixed point. The
-// content-blind double-encoding contract of PR #5507 lives in `encodeUrl` (the
-// wire boundary), not here.
+// wire-boundary encoder (`encodeUrl` below) routes query parts through the same
+// helper, so a request that round-trips through the reducers is not encoded a
+// second time on the way out.
 function buildQueryString(paramsArray: QueryParam[], { encode = false }: BuildQueryStringOptions = {}): string {
   return paramsArray
     .filter(({ name }) => typeof name === 'string' && name.trim().length > 0)
@@ -177,12 +177,9 @@ function parseQueryParams(query: string, { decode = false, stripFragment = true 
 // double-encoded. By decoding-then-encoding we collapse both cases (raw input
 // + already-encoded input) to the same single-encoded form.
 //
-// NOTE: this idempotency applies to the *wire-boundary* query handling only.
-// `encodeUrl` below stays content-blind per PR #5507's contract — query values
-// are user data and pre-encoded inputs are a legitimate signal that the user
-// wants the encoding to survive a server URL-decode pass (the redirect-URL use
-// case). The params → URL rebuild takes the opposite, idempotent route via
-// `encodeQueryParamPart` above.
+// The wire boundary (`encodeUrl`) routes query names/values through the same
+// `encodeQueryParamPart` helper, so "exactly one level of encoding" holds for
+// path and query alike.
 const encodePathSegments = (path: string): string =>
   path
     .split('/')
@@ -190,8 +187,10 @@ const encodePathSegments = (path: string): string =>
     .join('/');
 
 // Encodes path segments and query name/value pairs when the URL Encoding toggle is on.
-// Content-blind per PR #5507's design contract: applying it to an already-encoded
-// input intentionally double-encodes (e.g. `?q=%20` → `?q=%2520`).
+// Idempotent on both sides: an already-encoded input is decoded before the single
+// encode pass, so `?q=%20` and `?q= ` both land as `?q=%20` and never as
+// `?q=%2520`. The URL bar and the params table are two views of one value, so
+// the toggle has to yield the same wire URL whichever view it started from.
 //
 // `#` is treated as **data**, not as the RFC 3986 §3.5 fragment delimiter:
 //   `?token=abc#def`  →  `?token=abc%23def`   (toggle ON)
@@ -226,15 +225,15 @@ const encodeUrl = (url: string): string => {
 
   if (queryIdx >= 0) {
     // stripFragment: false so `#` in the query value is treated as a literal
-    // byte and gets encoded to `%23` by the encodeURIComponent below.
+    // byte and gets encoded to `%23` by the encodeQueryParamPart call below.
     const params = parseQueryParams(queryString, { decode: false, stripFragment: false });
     const rebuilt = params
       .map(({ name, value }) => {
-        const encodedName = encodeURIComponent(name);
+        const encodedName = encodeQueryParamPart(name);
         if (value === undefined) {
           return encodedName;
         }
-        const encodedValue = encodeURIComponent(value);
+        const encodedValue = encodeQueryParamPart(value);
         return `${encodedName}=${encodedValue}`;
       })
       .filter((pair) => pair.length > 0 && !pair.startsWith('='))

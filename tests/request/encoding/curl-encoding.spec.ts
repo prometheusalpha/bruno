@@ -23,7 +23,7 @@ test.describe('Code Generation URL Encoding', () => {
       await modal.closeButton().waitFor({ state: 'hidden' });
     });
 
-    test('should double-encode pre-encoded URL (%20 to %2520)', async ({ pageWithUserData: page }) => {
+    test('should leave a pre-encoded URL at one encoding level (%20 stays %20)', async ({ pageWithUserData: page }) => {
       const { sidebar, request, modal } = buildCommonLocators(page);
 
       await openCollection(page, 'encoding-test');
@@ -35,8 +35,11 @@ test.describe('Code Generation URL Encoding', () => {
       const codeEditor = page.locator('.editor-content .CodeMirror').first();
       await expect(codeEditor).toBeVisible();
 
+      // The snippet must show the bytes the request actually sends. Promoting
+      // %20 to %2520 would make Copy as Code disagree with the wire.
       const generatedCode = await codeEditor.textContent();
-      expect(generatedCode).toContain('http://base.source?name=John%2520Doe');
+      expect(generatedCode).toContain('http://base.source?name=John%20Doe');
+      expect(generatedCode).not.toContain('%2520');
 
       await modal.closeButton().click();
       await modal.closeButton().waitFor({ state: 'hidden' });

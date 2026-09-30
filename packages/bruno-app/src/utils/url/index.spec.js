@@ -548,13 +548,13 @@ describe('Url Utils - interpolateUrlPathParams with { encodeUrl: true }', () => 
     expect(result).toEqual('https://example.com/odata/Products(ABC%2F123)');
   });
 
-  it('should double-encode pre-encoded path-param value (PR #5507 contract)', () => {
+  it('should double-encode a pre-encoded path-param value', () => {
     const url = 'https://example.com/users/:id';
     const params = [{ name: 'id', type: 'path', enabled: true, value: 'aaa%2Fbbb' }];
 
     const result = interpolateUrlPathParams(url, params, {}, { encodeUrl: true });
 
-    // Per PR #5507, encoding is content-blind: `%2F` → `%252F`.
+    // Path-param substitution encodes the value as typed, without a decode pass.
     expect(result).toEqual('https://example.com/users/aaa%252Fbbb');
   });
 
