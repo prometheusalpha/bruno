@@ -12,7 +12,7 @@ import { sortWorkspaces, toggleWorkspacePin } from 'utils/workspaces';
 import { focusTab } from 'providers/ReduxStore/slices/tabs';
 import get from 'lodash/get';
 
-import Bruno from 'components/Bruno';
+import IconLoadBalancer from 'components/Icons/IconLoadBalancer';
 import MenuDropdown from 'ui/MenuDropdown';
 import ActionIcon from 'ui/ActionIcon';
 import IconSidebarToggle from 'components/Icons/IconSidebarToggle';
@@ -295,9 +295,9 @@ const AppTitleBar = () => {
           </MenuDropdown>
         </div>
 
-        {/* Center section: Bruno logo + text */}
+        {/* Center section: app logo + text */}
         <div className="titlebar-center">
-          <Bruno width={18} />
+          <IconLoadBalancer size={18} />
           <span className="bruno-text">Bruno</span>
         </div>
 
